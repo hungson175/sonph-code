@@ -1,0 +1,25 @@
+[project]
+name = "coding-agent"
+version = "0.1.0"
+description = "A Python-based coding agent implementation that mimics Claude Code functionality"
+authors = [
+    {name = "User", email = "user@example.com"}
+]
+requires-python = ">=3.9"
+dependencies = [
+    "langchain-anthropic>=0.1.0",
+    "langchain-core>=0.1.0", 
+    "python-dotenv>=1.0.0",
+    "colorama>=0.4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
