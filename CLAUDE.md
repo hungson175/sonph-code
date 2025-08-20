@@ -109,6 +109,10 @@ Environment configuration is required for the agent to work:
 - **Search Operations**: Implement both file-based (Glob) and content-based (Grep) searching
 - **State Management**: Maintain conversation history and background process tracking
 
+## CRITICAL: Tool Description Preservation
+
+⚠️ **NEVER modify tool descriptions in `docs/claude-code/*.md` or `coding_agent.py`** - they are MASTER PIECES of prompt engineering from Claude Code reverse engineering. Only change if there's a specific bug or non-existent tool/code referenced.
+
 ## Testing
 
 No automated test framework is currently configured. The project includes a demo mode that exercises core functionality.

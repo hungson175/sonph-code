@@ -18,8 +18,8 @@ The original Claude Code functionality was analyzed through:
 ## Installation
 
 ### Prerequisites
-- Python 3.9 or higher
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- Python 3.11 or higher
+- [uv](https://docs.astral.sh/uv/) (recommended)
 
 ### Setup
 
@@ -73,19 +73,6 @@ The agent includes these essential coding tools:
 - **Task Management:** TodoWrite
 - **Search & Analysis:** Pattern matching, content search
 
-### Development Tools
-
-```bash
-# Format code
-uv run black coding_agent.py
-
-# Lint code  
-uv run ruff check coding_agent.py
-
-# Run tests
-uv run pytest
-```
-
 ## Example Prompts
 
 Here are some example prompts to try with the coding agent:
@@ -93,18 +80,6 @@ Here are some example prompts to try with the coding agent:
 - Tạo game cờ caro (5 quân thẳng hàng/chéo, không phải tic-tac-toe) cho web sử dụng NextJS/ReactJS với thiết kế tối giản cho 2 người chơi, màu đen trắng
 - Create a chess game for 2 players using NextJS/React with minimalist black/white design, beautiful and clear graphics, implementing all chess rules (winning conditions, castling, etc.)
 - Read file expense-tracker-prompt.txt then implement the application
-  
-## Architecture
-
-- **Single-file design** (`coding_agent.py`) containing all functionality
-- **LangChain integration** for LLM interactions with tool binding
-- **Caching optimization** using Anthropic's ephemeral cache control
-- **Background process support** for long-running commands
-- **Conversation state management** with message history
-
-## Contributing
-
-Feel free to extend the agent with additional tools or improve existing functionality. The codebase is designed to be easily extensible.
 
 ## License
 

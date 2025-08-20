@@ -1,6 +1,9 @@
 """
 Coding Agent with Essential Tools
 A minimal but powerful coding assistant
+
+CRITICAL: Tool descriptions are MASTER PIECES of prompt engineering.
+NEVER modify unless there's a specific bug or non-existent tool/code.
 """
 
 from datetime import datetime
@@ -44,8 +47,9 @@ def read_file(file_path: str, offset: int = None, limit: int = None) -> str:
     """Reads a file from the local filesystem. You can access any file directly by using this tool.
 Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
-Usage:
-- The file_path parameter must be an absolute path, not a relative path
+## Usage Guidelines
+
+- **File path must be absolute**, not relative
 - By default, it reads up to 2000 lines starting from the beginning of the file
 - You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
 - Any lines longer than 2000 characters will be truncated

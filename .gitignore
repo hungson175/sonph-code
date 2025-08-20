@@ -134,3 +134,6 @@ $RECYCLE.BIN/
 
 # LangSmith
 .langchain/
+
+# Project directories
+caro-game/
