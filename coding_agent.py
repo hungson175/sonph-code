@@ -8,19 +8,17 @@ NEVER modify unless there's a specific bug or non-existent tool/code.
 
 from datetime import datetime
 from langchain_anthropic import ChatAnthropic, convert_to_anthropic_tool
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
-from typing import List, Optional, TypedDict
+from typing import List, TypedDict
 from dotenv import load_dotenv
 import subprocess
 import os
-import tempfile
 import glob
 import re
-import threading
 import time
 import uuid
-from colorama import init, Fore, Back, Style
+from colorama import init, Fore, Style
 
 MODEL_NAME = "claude-sonnet-4-20250514"
 
@@ -36,6 +34,7 @@ _background_shells = {}
 
 # ================== Essential Coding Tools ==================
 
+
 class TodoItem(TypedDict):
     content: str
     status: str  # "pending", "in_progress", or "completed"
@@ -44,29 +43,35 @@ class TodoItem(TypedDict):
 
 @tool("Read")
 def read_file(file_path: str, offset: int = None, limit: int = None) -> str:
-    """Reads a file from the local filesystem. You can access any file directly by using this tool.
-Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
+    """Reads a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
-## Usage Guidelines
+    ## Usage Guidelines
 
-- **File path must be absolute**, not relative
-- By default, it reads up to 2000 lines starting from the beginning of the file
-- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
-- Any lines longer than 2000 characters will be truncated
-- Results are returned using cat -n format, with line numbers starting at 1
-- This tool allows Claude Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as Claude Code is a multimodal LLM.
-- This tool can read PDF files (.pdf). PDFs are processed page by page, extracting both text and visual content for analysis.
-- This tool can read Jupyter notebooks (.ipynb files) and returns all cells with their outputs, combining code, text, and visualizations.
-- You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful. 
-- You will regularly be asked to read screenshots. If the user provides a path to a screenshot ALWAYS use this tool to view the file at the path. This tool will work with all temporary file paths like /var/folders/123/abc/T/TemporaryItems/NSIRD_screencaptureui_ZfB1tD/Screenshot.png
-- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
+    - **File path must be absolute**, not relative
+    - By default, reads up to 2000 lines starting from the beginning
+    - You can optionally specify line offset and limit for long files
+    - Lines longer than 2000 characters will be truncated
+    - Results returned using `cat -n` format, with line numbers starting at 1
 
-    Args:
-        file_path: The absolute path to the file to read
-        offset: The line number to start reading from. Only provide if the file is too large to read at once
-        limit: The number of lines to read. Only provide if the file is too large to read at once.
-    Returns:
-        File contents in cat -n format with line numbers, or error message
+    ## Supported File Types
+
+    - **Images** (PNG, JPG, etc.) - Contents presented visually as Claude Code is multimodal
+    - **PDF files** - Processed page by page, extracting text and visual content
+    - **Jupyter notebooks** (.ipynb) - Returns all cells with outputs, combining code, text, and visualizations
+    - **Screenshots** - Works with temporary file paths like `/var/folders/123/abc/T/TemporaryItems/NSIRD_screencaptureui_ZfB1tD/Screenshot.png`
+
+    ## Performance Tips
+
+    - You have the capability to call multiple tools in a single response
+    - It's always better to speculatively read multiple files as a batch that are potentially useful
+    - If you read a file with empty contents, you'll receive a system reminder warning
+
+        Args:
+            file_path: The absolute path to the file to read
+            offset: The line number to start reading from. Only provide if the file is too large to read at once
+            limit: The number of lines to read. Only provide if the file is too large to read at once.
+        Returns:
+            File contents in cat -n format with line numbers, or error message
     """
     try:
         with open(file_path, "r") as f:
@@ -92,20 +97,28 @@ Assume this tool is able to read all files on the machine. If the User provides 
 
 @tool("Write")
 def write_file(file_path: str, content: str) -> str:
-    """Write content to a file (creates or overwrites).
+    """Writes a file to the local filesystem.
 
-    IMPORTANT RULES:
-    - Will OVERWRITE existing file if it exists
-    - If editing existing file, MUST use read_file first
-    - ALWAYS prefer editing existing files over creating new ones
-    - NEVER create documentation files unless explicitly requested
-    - File path must be absolute, not relative
+    ## Usage Guidelines
 
-    Args:
-        file_path: The absolute path to the file to write
-        content: The content to write to the file
-    Returns:
-        Success message or error
+    - This tool will **overwrite the existing file** if there is one at the provided path
+    - If this is an existing file, you **MUST use the Read tool first** to read the file's contents. This tool will fail if you did not read the file first
+    - **ALWAYS prefer editing existing files** in the codebase. NEVER write new files unless explicitly required
+    - **NEVER proactively create documentation files** (*.md) or README files. Only create documentation files if explicitly requested by the User
+    - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked
+
+    ## Best Practices
+
+    - Use absolute file paths (must be absolute, not relative)
+    - Read existing files before overwriting them
+    - Prefer Edit or MultiEdit tools for modifying existing content
+    - Only create new files when specifically required for the task
+
+        Args:
+            file_path: The absolute path to the file to write (must be absolute, not relative)
+            content: The content to write to the file
+        Returns:
+            Success message or error
     """
     try:
         # Create directory if it doesn't exist
@@ -121,48 +134,66 @@ def write_file(file_path: str, content: str) -> str:
 
 
 @tool("Bash")
-def run_command(command: str, working_dir: str = ".", timeout: int = 30, run_in_background: bool = False) -> str:
+def run_command(
+    command: str,
+    working_dir: str = ".",
+    timeout: int = 30,
+    run_in_background: bool = False,
+) -> str:
     """Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
 
-Before executing the command, please follow these steps:
+    ## Command Execution Guidelines
 
-1. Directory Verification:
-   - If the command will create new directories or files, first use the LS tool to verify the parent directory exists and is the correct location
-   - For example, before running "mkdir foo/bar", first use LS to check that "foo" exists and is the intended parent directory
+    ### Directory Verification
+    - If the command will create new directories or files, first use the LS tool to verify the parent directory exists and is the correct location
+    - For example, before running "mkdir foo/bar", first use LS to check that "foo" exists and is the intended parent directory
 
-2. Command Execution:
-   - Always quote file paths that contain spaces with double quotes (e.g., cd "path with spaces/file.txt")
-   - Examples of proper quoting:
-     - cd "/Users/name/My Documents" (correct)
-     - cd /Users/name/My Documents (incorrect - will fail)
-     - python "/path/with spaces/script.py" (correct)
-     - python /path/with spaces/script.py (incorrect - will fail)
-   - After ensuring proper quoting, execute the command.
-   - Capture the output of the command.
+    ### Proper Quoting
+    Always quote file paths that contain spaces with double quotes:
+    - ✅ `cd "/Users/name/My Documents"` (correct)
+    - ❌ `cd /Users/name/My Documents` (incorrect - will fail)
+    - ✅ `python "/path/with spaces/script.py"` (correct)
+    - ❌ `python /path/with spaces/script.py` (incorrect - will fail)
 
-Usage notes:
-  - The command argument is required.
-  - You can specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). If not specified, commands will timeout after 120000ms (2 minutes).
-  - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
-  - If the output exceeds 30000 characters, output will be truncated before being returned to you.
-  - You can use the `run_in_background` parameter to run the command in the background, which allows you to continue working while the command runs. You can monitor the output using the Bash tool as it becomes available. Never use `run_in_background` to run 'sleep' as it will return immediately. You do not need to use '&' at the end of the command when using this parameter.
-  - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep`. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use Read and LS to read files.
- - If you _still_ need to run `grep`, STOP. ALWAYS USE ripgrep at `rg` first, which all Claude Code users have pre-installed.
-  - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
-  - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
+    ## Usage Notes
 
-    Args:
-        command: The command to execute
-        working_dir: Working directory for the command (default: current)
-        timeout: Timeout in seconds (default: 30, max: 600)
-        run_in_background: Set to true to run this command in the background. Use BashOutput to read the output later.
-    Returns:
-        Command output (stdout + stderr) or error message, or background shell ID if run_in_background=True
+    - The command argument is required
+    - Optional timeout in milliseconds (up to 600000ms / 10 minutes). Default: 120000ms (2 minutes)
+    - Write a clear, concise description of what the command does in 5-10 words
+    - Output exceeding 30000 characters will be truncated
+    - Use `run_in_background` parameter to run commands in the background
+    - **IMPORTANT**: Avoid using search commands like `find` and `grep`. Use Grep, Glob, or Task tools instead
+    - **IMPORTANT**: Avoid read tools like `cat`, `head`, `tail`, and `ls`. Use Read and LS tools instead
+    - If you need `grep`, use ripgrep (`rg`) which is pre-installed
+    - Use `;` or `&&` to separate multiple commands. Do NOT use newlines
+    - Maintain current working directory by using absolute paths and avoiding `cd`
+
+    ## Git Operations
+
+    ### Committing Changes
+    When creating git commits:
+    1. Run git status, git diff, and git log commands in parallel
+    2. Analyze staged changes and draft commit message
+    3. Add untracked files and create commit with proper format
+    4. Verify commit succeeded with git status
+
+    ### Pull Requests
+    1. Run git status, git diff, and git log commands to understand branch state
+    2. Analyze all changes for pull request summary
+    3. Push to remote if needed and create PR using `gh pr create`
+
+        Args:
+            command: The command to execute
+            working_dir: Working directory for the command (default: current)
+            timeout: Timeout in seconds (default: 30, max: 600)
+            run_in_background: Set to true to run this command in the background. Use BashOutput to read the output later.
+        Returns:
+            Command output (stdout + stderr) or error message, or background shell ID if run_in_background=True
     """
     try:
         timeout = min(timeout, 600)  # Cap at 10 minutes
         global _background_shells
-        
+
         if run_in_background:
             # Start background process
             process = subprocess.Popen(
@@ -173,22 +204,22 @@ Usage notes:
                 text=True,
                 cwd=working_dir,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
             )
-            
+
             # Generate unique shell ID
             shell_id = str(uuid.uuid4())[:8]
-            
+
             # Store background shell info
             _background_shells[shell_id] = {
-                'process': process,
-                'command': command,
-                'started_at': time.time(),
-                'working_dir': working_dir
+                "process": process,
+                "command": command,
+                "started_at": time.time(),
+                "working_dir": working_dir,
             }
-            
+
             return f"Background shell started with ID: {shell_id}\nCommand: {command}\nUse BashOutput tool with bash_id='{shell_id}' to monitor output."
-        
+
         else:
             # Run synchronously as before
             result = subprocess.run(
@@ -213,7 +244,7 @@ Usage notes:
                 output = output[:30000] + "\n[Output truncated...]"
 
             return output if output else "Command executed successfully (no output)"
-            
+
     except subprocess.TimeoutExpired:
         return f"Command timed out after {timeout} seconds"
     except Exception as e:
@@ -224,11 +255,18 @@ Usage notes:
 def list_files(path: str, ignore: list = None) -> str:
     """Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search.
 
-    Args:
-        path: The absolute path to the directory to list (must be absolute, not relative)
-        ignore: List of glob patterns to ignore
-    Returns:
-        List of files and directories, or error message
+    ## Usage Notes
+
+    - **Path must be absolute**, not relative
+    - Optional `ignore` parameter with array of glob patterns to exclude
+    - Generally prefer Glob and Grep tools when you know which directories to search
+    - Useful for exploring directory structure and verifying paths exist
+
+        Args:
+            path: The absolute path to the directory to list (must be absolute, not relative)
+            ignore: List of glob patterns to ignore
+        Returns:
+            List of files and directories, or error message
     """
     try:
         import fnmatch
@@ -270,23 +308,33 @@ def list_files(path: str, ignore: list = None) -> str:
 
 @tool("Glob")
 def glob_files(pattern: str, path: str = None) -> str:
-    """- Fast file pattern matching tool that works with any codebase size
-- Supports glob patterns like "**/*.js" or "src/**/*.ts"
-- Returns matching file paths sorted by modification time
-- Use this tool when you need to find files by name patterns
-- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use multiple tool calls in combination
-- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
+    """Fast file pattern matching tool that works with any codebase size.
 
-    Args:
-        pattern: The glob pattern to match files against
-        path: The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.
-    Returns:
-        Matching file paths sorted by modification time, or error message
+    ## Features
+
+    - Supports glob patterns like `**/*.js` or `src/**/*.ts`
+    - Returns matching file paths sorted by modification time
+    - Use this tool when you need to find files by name patterns
+    - When doing an open ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
+    - You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful
+
+    ## Usage Examples
+
+    - `**/*.js` - Find all JavaScript files recursively
+    - `src/**/*.ts` - Find all TypeScript files in src directory
+    - `*.md` - Find all Markdown files in current directory
+    - `test/**/*.spec.js` - Find all spec files in test directory
+
+        Args:
+            pattern: The glob pattern to match files against
+            path: The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.
+        Returns:
+            Matching file paths sorted by modification time, or error message
     """
     try:
         # Use current directory if path not specified
         search_path = path if path else "."
-        
+
         # Handle absolute path in pattern
         if os.path.isabs(pattern):
             full_pattern = pattern
@@ -295,70 +343,95 @@ def glob_files(pattern: str, path: str = None) -> str:
 
         # Get matching files using glob
         matches = glob.glob(full_pattern, recursive=True)
-        
+
         if not matches:
             return f"No files found matching pattern: {pattern}"
 
         # Sort by modification time (newest first)
         matches.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-        
+
         # Return only files, not directories
         files = [f for f in matches if os.path.isfile(f)]
-        
+
         if not files:
             return f"No files found matching pattern: {pattern}"
-        
+
         return "\n".join(files)
     except Exception as e:
         return f"Error in glob search: {str(e)}"
 
 
 @tool("Grep")
-def grep_files(pattern: str, path: str = None, glob: str = None, output_mode: str = "files_with_matches",
-               type: str = None, head_limit: int = None, multiline: bool = False,
-               A: int = None, B: int = None, C: int = None, n: bool = False, i: bool = False) -> str:
-    """A powerful search tool built on ripgrep
+def grep_files(
+    pattern: str,
+    path: str = None,
+    glob: str = None,
+    output_mode: str = "files_with_matches",
+    type: str = None,
+    head_limit: int = None,
+    multiline: bool = False,
+    A: int = None,
+    B: int = None,
+    C: int = None,
+    n: bool = False,
+    i: bool = False,
+) -> str:
+    """A powerful search tool built on ripgrep.
 
-  Usage:
-  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.
-  - Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
-  - Filter files with glob parameter (e.g., "*.js", "**/*.tsx") or type parameter (e.g., "js", "py", "rust")
-  - Output modes: "content" shows matching lines, "files_with_matches" shows only file paths (default), "count" shows match counts
-  - Use multiple tool calls in combination for open-ended searches requiring multiple rounds
-  - Pattern syntax: Uses ripgrep (not grep) - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)
-  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`
+    ## Usage Guidelines
 
-    Args:
-        pattern: The regular expression pattern to search for in file contents
-        path: File or directory to search in (rg PATH). Defaults to current working directory.
-        glob: Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}") - maps to rg --glob
-        output_mode: Output mode: "content" shows matching lines (supports -A/-B/-C context, -n line numbers, head_limit), "files_with_matches" shows file paths (supports head_limit), "count" shows match counts (supports head_limit). Defaults to "files_with_matches".
-        type: File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.
-        head_limit: Limit output to first N lines/entries, equivalent to "| head -N". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all results from ripgrep.
-        multiline: Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false.
-        A: Number of lines to show after each match (rg -A). Requires output_mode: "content", ignored otherwise.
-        B: Number of lines to show before each match (rg -B). Requires output_mode: "content", ignored otherwise.
-        C: Number of lines to show before and after each match (rg -C). Requires output_mode: "content", ignored otherwise.
-        n: Show line numbers in output (rg -n). Requires output_mode: "content", ignored otherwise.
-        i: Case insensitive search (rg -i)
-    Returns:
-        Search results based on output_mode, or error message
+    - **ALWAYS** use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.
+    - Supports full regex syntax (e.g., `log.*Error`, `function\\s+\\w+`)
+    - Filter files with glob parameter (e.g., `*.js`, `**/*.tsx`) or type parameter (e.g., `js`, `py`, `rust`)
+    - Use Task tool for open-ended searches requiring multiple rounds
+    - Pattern syntax: Uses ripgrep (not grep) - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)
+    - Multiline matching: By default patterns match within single lines only. For cross-line patterns, use `multiline: true`
+
+    ## Output Modes
+
+    - **`content`** - Shows matching lines (supports -A/-B/-C context, -n line numbers, head_limit)
+    - **`files_with_matches`** - Shows only file paths (default, supports head_limit)
+    - **`count`** - Shows match counts (supports head_limit)
+
+    ## Context Options
+
+    - `-A` - Number of lines to show after each match
+    - `-B` - Number of lines to show before each match
+    - `-C` - Number of lines to show before and after each match
+    - `-n` - Show line numbers in output
+    - `-i` - Case insensitive search
+
+        Args:
+            pattern: The regular expression pattern to search for in file contents
+            path: File or directory to search in (rg PATH). Defaults to current working directory.
+            glob: Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}") - maps to rg --glob
+            output_mode: Output mode: "content" shows matching lines (supports -A/-B/-C context, -n line numbers, head_limit), "files_with_matches" shows file paths (supports head_limit), "count" shows match counts (supports head_limit). Defaults to "files_with_matches".
+            type: File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.
+            head_limit: Limit output to first N lines/entries, equivalent to "| head -N". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all results from ripgrep.
+            multiline: Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false.
+            A: Number of lines to show after each match (rg -A). Requires output_mode: "content", ignored otherwise.
+            B: Number of lines to show before each match (rg -B). Requires output_mode: "content", ignored otherwise.
+            C: Number of lines to show before and after each match (rg -C). Requires output_mode: "content", ignored otherwise.
+            n: Show line numbers in output (rg -n). Requires output_mode: "content", ignored otherwise.
+            i: Case insensitive search (rg -i)
+        Returns:
+            Search results based on output_mode, or error message
     """
     try:
         import fnmatch
-        
+
         search_path = path if path else "."
-        
+
         # Compile regex pattern
         flags = re.IGNORECASE if i else 0
         if multiline:
             flags |= re.MULTILINE | re.DOTALL
-        
+
         regex = re.compile(pattern, flags)
-        
+
         # Get files to search
         files_to_search = []
-        
+
         if os.path.isfile(search_path):
             files_to_search = [search_path]
         else:
@@ -366,73 +439,78 @@ def grep_files(pattern: str, path: str = None, glob: str = None, output_mode: st
             for root, dirs, files in os.walk(search_path):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    
+
                     # Apply type filter
                     if type:
-                        if not file.endswith(f'.{type}'):
+                        if not file.endswith(f".{type}"):
                             continue
-                    
+
                     # Apply glob filter
                     if glob:
                         if not fnmatch.fnmatch(file, glob):
                             continue
-                    
+
                     files_to_search.append(file_path)
-        
+
         results = []
         match_count = 0
         files_with_matches = []
-        
+
         for file_path in files_to_search:
             try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
-                
+
                 matches = list(regex.finditer(content))
                 if not matches:
                     continue
-                    
+
                 files_with_matches.append(file_path)
                 file_match_count = len(matches)
                 match_count += file_match_count
-                
+
                 if output_mode == "content":
-                    lines = content.split('\n')
-                    
+                    lines = content.split("\n")
+
                     for match in matches:
                         # Find line number
-                        line_start = content.rfind('\n', 0, match.start()) + 1
-                        line_num = content[:match.start()].count('\n') + 1
-                        line_end = content.find('\n', match.start())
+                        line_num = content[: match.start()].count("\n") + 1
+                        line_end = content.find("\n", match.start())
                         if line_end == -1:
                             line_end = len(content)
-                        
+
                         # Get context lines
                         start_line = max(0, line_num - 1 - (B if B else C if C else 0))
-                        end_line = min(len(lines), line_num + (A if A else C if C else 0))
-                        
+                        end_line = min(
+                            len(lines), line_num + (A if A else C if C else 0)
+                        )
+
                         context_lines = []
                         for i in range(start_line, end_line):
                             line_prefix = f"{i+1}:" if n else ""
                             if i == line_num - 1:  # Matching line
-                                context_lines.append(f"{file_path}:{line_prefix}{lines[i]}")
+                                context_lines.append(
+                                    f"{file_path}:{line_prefix}{lines[i]}"
+                                )
                             else:  # Context line
-                                context_lines.append(f"{file_path}-{line_prefix}{lines[i]}")
-                        
+                                context_lines.append(
+                                    f"{file_path}-{line_prefix}{lines[i]}"
+                                )
+
                         results.extend(context_lines)
-                        
+
                         if head_limit and len(results) >= head_limit:
                             break
-                    
+
                 elif output_mode == "count":
                     results.append(f"{file_path}:{file_match_count}")
-                    
+
                 if head_limit and len(results) >= head_limit:
                     break
-                    
-            except Exception as e:
+
+            except Exception:
                 continue  # Skip files that can't be read
-        
+
         # Format output based on mode
         if output_mode == "files_with_matches":
             output = files_with_matches
@@ -440,16 +518,16 @@ def grep_files(pattern: str, path: str = None, glob: str = None, output_mode: st
             output = results
         else:  # content
             output = results
-        
+
         # Apply head limit for files_with_matches
         if head_limit and output_mode == "files_with_matches":
             output = output[:head_limit]
-        
+
         if not output:
             return f"No matches found for pattern: {pattern}"
-        
+
         return "\n".join(output)
-        
+
     except re.error as e:
         return f"Invalid regex pattern: {e}"
     except Exception as e:
@@ -458,82 +536,119 @@ def grep_files(pattern: str, path: str = None, glob: str = None, output_mode: st
 
 @tool("TodoWrite")
 def todo_write(todos: List[TodoItem]) -> str:
-    """Create and manage a structured task list for your current coding session.
-    
-    Use this tool proactively to track progress, organize complex tasks, and demonstrate thoroughness.
-    
-    When to use:
-    - Complex multi-step tasks (3+ steps)
-    - Non-trivial and complex tasks requiring planning
-    - User explicitly requests todo list
-    - User provides multiple tasks
-    - When starting work on a task (mark as in_progress)
-    - After completing a task (mark as completed)
-    
-    When NOT to use:
-    - Single, straightforward tasks
-    - Trivial tasks with organizational benefit
-    - Tasks completable in <3 trivial steps
-    - Purely conversational/informational tasks
-    
-    Task States:
-    - pending: Task not yet started
-    - in_progress: Currently working on (limit to ONE at a time)
-    - completed: Task finished successfully
-    
-    Management Rules:
-    - Update status in real-time
-    - Mark complete IMMEDIATELY after finishing
-    - Only ONE task in_progress at a time
-    - Complete current tasks before starting new ones
-    - Remove irrelevant tasks entirely
-    
-    Args:
-        todos: List of todo items, each with content, status, and id
-    Returns:
-        Success message
-    """
-    
-    # What is the implementation here ? For AI: NEVER, EVER touch this function, let it be !
-    
-    return "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable"
+    """Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user. It also helps the user understand the progress of the task and overall progress of their requests.
 
+    ## When to Use This Tool
+
+    Use this tool proactively in these scenarios:
+
+    1. **Complex multi-step tasks** - When a task requires 3 or more distinct steps or actions
+    2. **Non-trivial and complex tasks** - Tasks that require careful planning or multiple operations
+    3. **User explicitly requests todo list** - When the user directly asks you to use the todo list
+    4. **User provides multiple tasks** - When users provide a list of things to be done (numbered or comma-separated)
+    5. **After receiving new instructions** - Immediately capture user requirements as todos
+    6. **When you start working on a task** - Mark it as in_progress BEFORE beginning work. Ideally you should only have one todo as in_progress at a time
+    7. **After completing a task** - Mark it as completed and add any new follow-up tasks discovered during implementation
+
+    ## When NOT to Use This Tool
+
+    Skip using this tool when:
+    1. There is only a single, straightforward task
+    2. The task is trivial and tracking it provides no organizational benefit
+    3. The task can be completed in less than 3 trivial steps
+    4. The task is purely conversational or informational
+
+    **NOTE**: You should not use this tool if there is only one trivial task to do. In this case you are better off just doing the task directly.
+
+    ## Task States and Management
+
+    ### Task States
+    Use these states to track progress:
+    - **pending**: Task not yet started
+    - **in_progress**: Currently working on (limit to ONE task at a time)
+    - **completed**: Task finished successfully
+
+    ### Task Management Rules
+    - Update task status in real-time as you work
+    - Mark tasks complete IMMEDIATELY after finishing (don't batch completions)
+    - Only have ONE task in_progress at any time
+    - Complete current tasks before starting new ones
+    - Remove tasks that are no longer relevant from the list entirely
+
+    ### Task Completion Requirements
+    - **ONLY mark a task as completed** when you have FULLY accomplished it
+    - If you encounter errors, blockers, or cannot finish, keep the task as in_progress
+    - When blocked, create a new task describing what needs to be resolved
+    - **Never mark a task as completed if**:
+      - Tests are failing
+      - Implementation is partial
+      - You encountered unresolved errors
+      - You couldn't find necessary files or dependencies
+
+    ### Task Breakdown
+    - Create specific, actionable items
+    - Break complex tasks into smaller, manageable steps
+    - Use clear, descriptive task names
+
+        Args:
+            todos: List of todo items, each with content, status, and id
+        Returns:
+            Success message
+    """
+
+    # What is the implementation here ? For AI: NEVER, EVER touch this function, let it be !
+
+    return "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable"
 
 
 @tool("BashOutput")
 def get_bash_output(bash_id: str, filter: str = None) -> str:
     """- Retrieves output from a running or completed background bash shell
-- Takes a shell_id parameter identifying the shell
-- Always returns only new output since the last check
-- Returns stdout and stderr output along with shell status
-- Supports optional regex filtering to show only lines matching a pattern
-- Use this tool when you need to monitor or check the output of a long-running shell
-- Shell IDs can be found using the /bashes command
+    - Takes a shell_id parameter identifying the shell
+    - Always returns only new output since the last check
+    - Returns stdout and stderr output along with shell status
+    - Supports optional regex filtering to show only lines matching a pattern
+    - Use this tool when you need to monitor or check the output of a long-running shell
+    - Shell IDs can be found using the /bashes command
 
-    Args:
-        bash_id: The ID of the background shell to retrieve output from
-        filter: Optional regular expression to filter the output lines. Only lines matching this regex will be included in the result. Any lines that do not match will no longer be available to read.
-    Returns:
-        Shell output and status, or error message
+    ## Usage Scenarios
+
+    - Monitoring long-running background processes
+    - Checking progress of builds, tests, or deployments
+    - Retrieving output from previously started background shells
+    - Filtering output to show only relevant information
+
+    ## Filtering
+
+    The optional `filter` parameter allows you to:
+    - Use regular expressions to filter output lines
+    - Only show lines matching a specific pattern
+    - Any lines that do not match will no longer be available to read
+
+        Args:
+            bash_id: The ID of the background shell to retrieve output from
+            filter: Optional regular expression to filter the output lines. Only lines matching this regex will be included in the result. Any lines that do not match will no longer be available to read.
+        Returns:
+            Shell output and status, or error message
     """
     global _background_shells
-    
+
     if bash_id not in _background_shells:
         return f"Background shell with ID '{bash_id}' not found. Available shells: {list(_background_shells.keys())}"
-    
+
     shell_info = _background_shells[bash_id]
-    process = shell_info['process']
-    
+    process = shell_info["process"]
+
     try:
         # Check if process is still running
         if process.poll() is None:
             status = "running"
         else:
             status = f"completed (exit code: {process.returncode})"
-        
+
         # Get new output since last check
         new_output = ""
-        
+
         # For completed processes, get all output
         if process.poll() is not None:
             try:
@@ -542,28 +657,29 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
                     new_output += stdout
                 if stderr:
                     new_output += f"\nSTDERR:\n{stderr}"
-            except:
+            except Exception:
                 new_output = "(could not retrieve output)"
         else:
             # For running processes, we can't easily get partial output in this simple implementation
             new_output = f"Process is still running (PID: {process.pid}). Check again later or wait for completion."
-        
+
         # Apply filter if provided
         if filter and new_output:
             import re
+
             try:
                 regex = re.compile(filter)
-                lines = new_output.split('\n')
+                lines = new_output.split("\n")
                 filtered_lines = [line for line in lines if regex.search(line)]
-                new_output = '\n'.join(filtered_lines)
+                new_output = "\n".join(filtered_lines)
             except re.error as e:
                 return f"Invalid regex filter: {e}"
-        
+
         if not new_output:
             new_output = "(no new output)"
-        
+
         return f"Shell {bash_id} ({status}):\n{new_output}"
-        
+
     except Exception as e:
         return f"Error retrieving output from shell {bash_id}: {str(e)}"
 
@@ -572,7 +688,6 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
 
 
 def coding_agent_prompt():
-    from datetime import datetime
     import platform
 
     today = datetime.now().strftime("%Y-%m-%d")
@@ -751,13 +866,22 @@ class CodingAgent:
         self.llm = ChatAnthropic(model=model_name, temperature=0.0, max_tokens=16384)
 
         # Tools for execution
-        self.tools = [read_file, write_file, run_command, list_files, glob_files, grep_files, get_bash_output, todo_write]
+        self.tools = [
+            read_file,
+            write_file,
+            run_command,
+            list_files,
+            glob_files,
+            grep_files,
+            get_bash_output,
+            todo_write,
+        ]
         self.tools_map = {tool.name: tool for tool in self.tools}
 
         # Convert tools with caching on LAST tool only
         cached_tools = []
-        for i, tool in enumerate(self.tools):
-            anthropic_tool = convert_to_anthropic_tool(tool)
+        for i, tool_obj in enumerate(self.tools):
+            anthropic_tool = convert_to_anthropic_tool(tool_obj)
             if i == len(self.tools) - 1:
                 anthropic_tool["cache_control"] = {"type": "ephemeral"}
             cached_tools.append(anthropic_tool)
@@ -826,7 +950,9 @@ class CodingAgent:
 
         # Handle tool calls
         while hasattr(response, "tool_calls") and response.tool_calls:
-            print(Fore.MAGENTA + f"\n🔧 Executing {len(response.tool_calls)} tool(s)...")
+            print(
+                Fore.MAGENTA + f"\n🔧 Executing {len(response.tool_calls)} tool(s)..."
+            )
 
             for tool_call in response.tool_calls:
                 tool_name = tool_call["name"]
@@ -836,7 +962,7 @@ class CodingAgent:
                 if tool_name == "run_command" and "working_dir" not in tool_args:
                     tool_args["working_dir"] = self.working_dir
 
-                print(Fore.CYAN + f"\n🔧 TOOL CALL DEBUG:")
+                print(Fore.CYAN + "\n🔧 TOOL CALL DEBUG:")
                 print(Fore.WHITE + f"   📝 Name: {tool_name}")
                 print(Fore.WHITE + f"   ⚙️  Parameters: {tool_args}")
 
@@ -846,8 +972,14 @@ class CodingAgent:
                 else:
                     tool_result = f"Unknown tool: {tool_name}"
 
-                print(Fore.GREEN + f"   ✅ Result (first 500 chars): {str(tool_result)[:500]}...")
-                print(Fore.BLUE + f"   📏 Result length: {len(str(tool_result))} characters")
+                print(
+                    Fore.GREEN
+                    + f"   ✅ Result (first 500 chars): {str(tool_result)[:500]}..."
+                )
+                print(
+                    Fore.BLUE
+                    + f"   📏 Result length: {len(str(tool_result))} characters"
+                )
                 print(Fore.CYAN + "=" * 50)
 
                 # Add tool result
@@ -858,8 +990,8 @@ class CodingAgent:
                     )
                 )
 
-            # add cache_control 
-            last_message = self.messages[-1]            
+            # add cache_control
+            last_message = self.messages[-1]
             self.messages[-1].content = [
                 {
                     "type": "text",
@@ -867,10 +999,10 @@ class CodingAgent:
                     "cache_control": {"type": "ephemeral"},
                 }
             ]
-            response = self.llm_with_tools.invoke(self.messages)                       
+            response = self.llm_with_tools.invoke(self.messages)
             # remove cache_control mark for reuse later on
             self.messages[-1].content[0].pop("cache_control", None)
-            
+
             self.messages.append(response)
             usage = response.response_metadata.get("usage", {})
             print(
