@@ -20,6 +20,7 @@ The original Claude Code functionality was analyzed through:
 ### Prerequisites
 - Python 3.11 or higher
 - [uv](https://docs.astral.sh/uv/) (recommended)
+- [ripgrep](https://github.com/BurntSushi/ripgrep) - Required for search functionality
 
 ### Setup
 
@@ -29,12 +30,26 @@ The original Claude Code functionality was analyzed through:
    cd sonph-code
    ```
 
-2. **Install dependencies using uv (recommended):**
+2. **Install ripgrep (required for search functionality):**
+   ```bash
+   # macOS
+   brew install ripgrep
+   
+   # Ubuntu/Debian
+   sudo apt install ripgrep
+   
+   # Windows
+   winget install BurntSushi.ripgrep.MSVC
+   
+   # Or download from: https://github.com/BurntSushi/ripgrep/releases
+   ```
+
+3. **Install dependencies using uv (recommended):**
    ```bash
    uv sync
    ```
 
-3. **Set up environment variables:**
+4. **Set up environment variables:**
    ```bash
    # Copy the example environment file
    cp .env.example .env

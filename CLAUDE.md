@@ -81,6 +81,9 @@ Development dependencies:
 - `black>=23.0.0` - Code formatter
 - `ruff>=0.1.0` - Fast Python linter
 
+External dependencies:
+- `ripgrep` (rg) - Required for Grep tool functionality. Install via system package manager or from https://github.com/BurntSushi/ripgrep
+
 ### Environment Setup
 
 Environment configuration is required for the agent to work:
