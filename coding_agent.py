@@ -441,25 +441,27 @@ def grep_files(
             Search results based on output_mode, or error message
     """
     try:
-        # Build ripgrep command - try multiple possible locations
-        rg_paths = [
-            "rg",
-            "/usr/local/bin/rg", 
-            "/opt/homebrew/bin/rg",
-            "/Users/sonph36/.nvm/versions/node/v22.9.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg"
-        ]
+        # Try to find ripgrep using standard methods
+        import shutil
         
-        rg_cmd = None
-        for rg_path in rg_paths:
-            try:
-                subprocess.run([rg_path, "--version"], capture_output=True, timeout=5)
-                rg_cmd = rg_path
-                break
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                continue
+        rg_cmd = shutil.which("rg")
         
         if not rg_cmd:
-            # Fallback to basic Python implementation
+            # Try common installation locations
+            rg_paths = [
+                "/usr/local/bin/rg", 
+                "/opt/homebrew/bin/rg",
+                "/usr/bin/rg",
+                os.path.expanduser("~/.local/bin/rg"),
+                os.path.expanduser("~/.cargo/bin/rg")
+            ]
+            
+            for rg_path in rg_paths:
+                if os.path.isfile(rg_path) and os.access(rg_path, os.X_OK):
+                    rg_cmd = rg_path
+                    break
+        
+        if not rg_cmd:
             return "Error: ripgrep (rg) not found. Please install ripgrep or ensure it's in PATH."
             
         cmd = [rg_cmd]
