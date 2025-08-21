@@ -17,6 +17,8 @@ import os
 import glob
 import time
 import uuid
+import threading
+import signal
 from colorama import init, Fore, Style
 
 MODEL_NAME = "claude-sonnet-4-20250514"
@@ -29,6 +31,54 @@ init(autoreset=True)
 
 # Global tracking for background shells
 _background_shells = {}
+
+# Global cancellation system
+_current_process = None
+_cancellation_requested = False
+
+def setup_keyboard_interrupt():
+    """Setup keyboard interrupt handling for Esc key"""
+    def signal_handler(signum, frame):
+        global _cancellation_requested, _current_process
+        _cancellation_requested = True
+        if _current_process:
+            try:
+                _current_process.terminate()
+                print(f"\n{Fore.YELLOW}⚠️  Process cancelled by user (Esc pressed)")
+            except Exception:
+                pass
+    
+    signal.signal(signal.SIGINT, signal_handler)
+
+def start_keyboard_monitor():
+    """Start monitoring for Esc key in a separate thread"""
+    def monitor_keyboard():
+        try:
+            import sys
+            import select
+            import tty
+            import termios
+            if sys.stdin.isatty():
+                old_settings = termios.tcgetattr(sys.stdin)
+                tty.setraw(sys.stdin.fileno())
+                
+                while not _cancellation_requested:
+                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                        key = sys.stdin.read(1)
+                        if ord(key) == 27:  # Esc key
+                            global _current_process
+                            if _current_process:
+                                _current_process.terminate()
+                                print(f"\n{Fore.YELLOW}⚠️  Tool execution cancelled (Esc pressed)")
+                                break
+                
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        except Exception:
+            pass  # Fallback gracefully if terminal handling fails
+    
+    thread = threading.Thread(target=monitor_keyboard, daemon=True)
+    thread.start()
+    return thread
 
 
 # ================== Essential Coding Tools ==================
@@ -191,7 +241,10 @@ def run_command(
     """
     try:
         timeout = min(timeout, 600)  # Cap at 10 minutes
-        global _background_shells
+        global _background_shells, _current_process, _cancellation_requested
+        
+        # Reset cancellation flag
+        _cancellation_requested = False
         
         # Enhanced git operation guidance
         def provide_git_guidance(cmd: str) -> str:
@@ -242,23 +295,39 @@ def run_command(
             return f"Background shell started with ID: {shell_id}\nCommand: {command}\nUse BashOutput tool with bash_id='{shell_id}' to monitor output."
 
         else:
-            # Run synchronously as before
-            result = subprocess.run(
+            # Run synchronously with cancellation support
+            _current_process = subprocess.Popen(
                 command,
                 shell=True,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=timeout,
                 cwd=working_dir,
             )
+            
+            try:
+                # Wait for process with timeout, checking for cancellation
+                stdout, stderr = _current_process.communicate(timeout=timeout)
+                result_code = _current_process.returncode
+                _current_process = None
+                
+                # Check if cancelled
+                if _cancellation_requested:
+                    return f"{Fore.YELLOW}⚠️  Command cancelled by user (Esc pressed)"
+                
+            except subprocess.TimeoutExpired:
+                _current_process.terminate()
+                _current_process.wait()
+                _current_process = None
+                return f"Command timed out after {timeout} seconds"
 
             output = ""
-            if result.stdout:
-                output += result.stdout
-            if result.stderr:
-                output += f"\nSTDERR:\n{result.stderr}"
-            if result.returncode != 0:
-                output += f"\nReturn code: {result.returncode}"
+            if stdout:
+                output += stdout
+            if stderr:
+                output += f"\nSTDERR:\n{stderr}"
+            if result_code != 0:
+                output += f"\nReturn code: {result_code}"
 
             # Truncate if too long
             if len(output) > 30000:
@@ -915,6 +984,9 @@ Remember: Be direct, efficient, and respect the user's existing codebase convent
 class CodingAgent:
     def __init__(self, model_name: str = MODEL_NAME):
         """Initialize the coding agent with tools and caching."""
+        # Setup keyboard interrupt handling
+        setup_keyboard_interrupt()
+        
         # Setup LLM
         self.llm = ChatAnthropic(model=model_name, temperature=0.0, max_tokens=16384)
 
@@ -1018,6 +1090,10 @@ class CodingAgent:
                 print(Fore.CYAN + "\n🔧 TOOL CALL DEBUG:")
                 print(Fore.WHITE + f"   📝 Name: {tool_name}")
                 print(Fore.WHITE + f"   ⚙️  Parameters: {tool_args}")
+                
+                # Show cancellation instruction for potentially long-running tools
+                if tool_name in ["run_command", "grep_files"]:
+                    print(Fore.YELLOW + "   ⌨️  Press Ctrl+C to cancel if needed")
 
                 # Execute tool
                 if tool_name in self.tools_map:
@@ -1125,6 +1201,7 @@ def interactive():
     print(Fore.WHITE + "  - Debug issues")
     print(Fore.WHITE + "  - Refactor code")
     print(Fore.WHITE + "  - Set up new projects")
+    print(Fore.YELLOW + "\n💡 Tip: Press Ctrl+C to cancel any long-running tool execution")
     print(Fore.CYAN + "=" * 70 + "\n")
 
     agent = CodingAgent()
