@@ -111,7 +111,7 @@ Environment configuration is required for the agent to work:
 
 ## CRITICAL: Tool Description Preservation
 
-⚠️ **NEVER modify tool descriptions in `docs/claude-code/*.md` or `coding_agent.py`** - they are MASTER PIECES of prompt engineering from Claude Code reverse engineering. Only change if there's a specific bug or non-existent tool/code referenced.
+⚠️ **NEVER modify tool descriptions in `docs/claude-code/*.md`** - they are MASTER PIECES of prompt engineering from Claude Code reverse engineering. Only change if there's a specific bug or non-existent tool/code referenced.
 
 ## Testing
 
