@@ -108,6 +108,7 @@ Environment configuration is required for the agent to work:
 - **Command Execution**: Support both synchronous and background execution modes
 - **Search Operations**: Implement both file-based (Glob) and content-based (Grep) searching
 - **State Management**: Maintain conversation history and background process tracking
+- **TodoWrite**: NEVER, EVER modify this tool - it's a master piece of engineering with intentionally minimalist implementation
 
 ## CRITICAL: Tool Description Preservation
 

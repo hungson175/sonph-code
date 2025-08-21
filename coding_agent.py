@@ -15,7 +15,6 @@ from dotenv import load_dotenv
 import subprocess
 import os
 import glob
-import re
 import time
 import uuid
 from colorama import init, Fore, Style
@@ -193,6 +192,26 @@ def run_command(
     try:
         timeout = min(timeout, 600)  # Cap at 10 minutes
         global _background_shells
+        
+        # Enhanced git operation guidance
+        def provide_git_guidance(cmd: str) -> str:
+            """Provide helpful guidance for git operations"""
+            guidance = ""
+            cmd_lower = cmd.lower().strip()
+            
+            if cmd_lower.startswith('git commit'):
+                if '-m' not in cmd_lower and not cmd_lower.endswith('--amend'):
+                    guidance += "\n💡 Git Guidance: Consider running 'git status' and 'git diff --cached' first to review staged changes"
+            elif cmd_lower.startswith('git push'):
+                guidance += "\n💡 Git Guidance: Ensure all changes are committed and consider 'git log --oneline' to verify commits"
+            elif cmd_lower.startswith('git merge') or cmd_lower.startswith('git rebase'):
+                guidance += "\n💡 Git Guidance: Make sure working directory is clean with 'git status' before merge/rebase"
+            elif cmd_lower == 'git status':
+                guidance += "\n💡 Git Guidance: This shows staged/unstaged changes - consider 'git diff' for detailed changes"
+            elif cmd_lower.startswith('git add'):
+                guidance += "\n💡 Git Guidance: Review changes with 'git diff' before staging"
+                
+            return guidance
 
         if run_in_background:
             # Start background process
@@ -243,7 +262,11 @@ def run_command(
             if len(output) > 30000:
                 output = output[:30000] + "\n[Output truncated...]"
 
-            return output if output else "Command executed successfully (no output)"
+            # Add git guidance if applicable
+            git_guidance = provide_git_guidance(command)
+            final_output = output if output else "Command executed successfully (no output)"
+            
+            return final_output + git_guidance
 
     except subprocess.TimeoutExpired:
         return f"Command timed out after {timeout} seconds"
@@ -418,118 +441,94 @@ def grep_files(
             Search results based on output_mode, or error message
     """
     try:
-        import fnmatch
-
-        search_path = path if path else "."
-
-        # Compile regex pattern
-        flags = re.IGNORECASE if i else 0
-        if multiline:
-            flags |= re.MULTILINE | re.DOTALL
-
-        regex = re.compile(pattern, flags)
-
-        # Get files to search
-        files_to_search = []
-
-        if os.path.isfile(search_path):
-            files_to_search = [search_path]
-        else:
-            # Walk directory
-            for root, dirs, files in os.walk(search_path):
-                for file in files:
-                    file_path = os.path.join(root, file)
-
-                    # Apply type filter
-                    if type:
-                        if not file.endswith(f".{type}"):
-                            continue
-
-                    # Apply glob filter
-                    if glob:
-                        if not fnmatch.fnmatch(file, glob):
-                            continue
-
-                    files_to_search.append(file_path)
-
-        results = []
-        match_count = 0
-        files_with_matches = []
-
-        for file_path in files_to_search:
+        # Build ripgrep command - try multiple possible locations
+        rg_paths = [
+            "rg",
+            "/usr/local/bin/rg", 
+            "/opt/homebrew/bin/rg",
+            "/Users/sonph36/.nvm/versions/node/v22.9.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg"
+        ]
+        
+        rg_cmd = None
+        for rg_path in rg_paths:
             try:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
-
-                matches = list(regex.finditer(content))
-                if not matches:
-                    continue
-
-                files_with_matches.append(file_path)
-                file_match_count = len(matches)
-                match_count += file_match_count
-
-                if output_mode == "content":
-                    lines = content.split("\n")
-
-                    for match in matches:
-                        # Find line number
-                        line_num = content[: match.start()].count("\n") + 1
-                        line_end = content.find("\n", match.start())
-                        if line_end == -1:
-                            line_end = len(content)
-
-                        # Get context lines
-                        start_line = max(0, line_num - 1 - (B if B else C if C else 0))
-                        end_line = min(
-                            len(lines), line_num + (A if A else C if C else 0)
-                        )
-
-                        context_lines = []
-                        for i in range(start_line, end_line):
-                            line_prefix = f"{i+1}:" if n else ""
-                            if i == line_num - 1:  # Matching line
-                                context_lines.append(
-                                    f"{file_path}:{line_prefix}{lines[i]}"
-                                )
-                            else:  # Context line
-                                context_lines.append(
-                                    f"{file_path}-{line_prefix}{lines[i]}"
-                                )
-
-                        results.extend(context_lines)
-
-                        if head_limit and len(results) >= head_limit:
-                            break
-
-                elif output_mode == "count":
-                    results.append(f"{file_path}:{file_match_count}")
-
-                if head_limit and len(results) >= head_limit:
-                    break
-
-            except Exception:
-                continue  # Skip files that can't be read
-
-        # Format output based on mode
+                subprocess.run([rg_path, "--version"], capture_output=True, timeout=5)
+                rg_cmd = rg_path
+                break
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+        
+        if not rg_cmd:
+            # Fallback to basic Python implementation
+            return "Error: ripgrep (rg) not found. Please install ripgrep or ensure it's in PATH."
+            
+        cmd = [rg_cmd]
+        
+        # Add pattern
+        cmd.append(pattern)
+        
+        # Add path if specified
+        if path:
+            cmd.append(path)
+        
+        # Add flags based on parameters
+        if i:
+            cmd.append("-i")
+        if multiline:
+            cmd.extend(["-U", "--multiline-dotall"])
+        if n and output_mode == "content":
+            cmd.append("-n")
+        if A is not None and output_mode == "content":
+            cmd.extend(["-A", str(A)])
+        if B is not None and output_mode == "content":
+            cmd.extend(["-B", str(B)])
+        if C is not None and output_mode == "content":
+            cmd.extend(["-C", str(C)])
+        
+        # Set output mode
         if output_mode == "files_with_matches":
-            output = files_with_matches
+            cmd.append("-l")
         elif output_mode == "count":
-            output = results
-        else:  # content
-            output = results
-
-        # Apply head limit for files_with_matches
-        if head_limit and output_mode == "files_with_matches":
-            output = output[:head_limit]
-
-        if not output:
+            cmd.append("-c")
+        # content mode is default, no flag needed
+        
+        # Add file type filter
+        if type:
+            cmd.extend(["-t", type])
+        
+        # Add glob filter
+        if glob:
+            cmd.extend(["-g", glob])
+        
+        # Execute ripgrep
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        
+        # Handle ripgrep exit codes
+        if result.returncode == 0:
+            output_lines = result.stdout.strip().split('\n') if result.stdout.strip() else []
+        elif result.returncode == 1:
+            # No matches found
             return f"No matches found for pattern: {pattern}"
-
-        return "\n".join(output)
-
-    except re.error as e:
-        return f"Invalid regex pattern: {e}"
+        else:
+            # Error occurred
+            error_msg = result.stderr.strip() if result.stderr.strip() else "Unknown ripgrep error"
+            return f"Error in ripgrep search: {error_msg}"
+        
+        # Apply head limit if specified
+        if head_limit and output_lines:
+            output_lines = output_lines[:head_limit]
+        
+        return '\n'.join(output_lines) if output_lines else f"No matches found for pattern: {pattern}"
+        
+    except subprocess.TimeoutExpired:
+        return "Ripgrep search timed out after 30 seconds"
+    except FileNotFoundError:
+        return "Error: ripgrep (rg) not found. Please install ripgrep first."
     except Exception as e:
         return f"Error in grep search: {str(e)}"
 
@@ -642,7 +641,9 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
     try:
         # Check if process is still running
         if process.poll() is None:
-            status = "running"
+            # Calculate runtime
+            runtime = time.time() - shell_info.get('started_at', 0)
+            status = f"running for {runtime:.1f}s"
         else:
             status = f"completed (exit code: {process.returncode})"
 
@@ -652,16 +653,39 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
         # For completed processes, get all output
         if process.poll() is not None:
             try:
-                stdout, stderr = process.communicate()
+                stdout, stderr = process.communicate(timeout=5)
                 if stdout:
                     new_output += stdout
                 if stderr:
                     new_output += f"\nSTDERR:\n{stderr}"
+            except subprocess.TimeoutExpired:
+                new_output = "(output retrieval timed out)"
             except Exception:
                 new_output = "(could not retrieve output)"
         else:
-            # For running processes, we can't easily get partial output in this simple implementation
-            new_output = f"Process is still running (PID: {process.pid}). Check again later or wait for completion."
+            # Enhanced monitoring for running processes
+            try:
+                # Try to get partial output (non-blocking)
+                import select
+                
+                if hasattr(select, 'select') and process.stdout:
+                    # Unix-like systems - use select for non-blocking read
+                    ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                    if ready:
+                        partial_output = process.stdout.read()
+                        if partial_output:
+                            new_output += partial_output.decode('utf-8', errors='ignore')
+                    
+                if not new_output:
+                    # Provide enhanced status information
+                    cmd_info = shell_info.get('command', 'unknown')
+                    runtime = time.time() - shell_info.get('started_at', 0)
+                    new_output = f"Process is still running (PID: {process.pid})\nCommand: {cmd_info}\nRuntime: {runtime:.1f}s\n\n🔄 Use this tool again to check for updates..."
+                    
+            except Exception:
+                # Fallback to basic status
+                runtime = time.time() - shell_info.get('started_at', 0)
+                new_output = f"Process is still running (PID: {process.pid}, runtime: {runtime:.1f}s). Check again later or wait for completion."
 
         # Apply filter if provided
         if filter and new_output:
