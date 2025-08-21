@@ -235,6 +235,8 @@ def run_command(
                 "command": command,
                 "started_at": time.time(),
                 "working_dir": working_dir,
+                "output_buffer": "",  # Store accumulated output
+                "last_position": 0,   # Track what we've already returned
             }
 
             return f"Background shell started with ID: {shell_id}\nCommand: {command}\nUse BashOutput tool with bash_id='{shell_id}' to monitor output."
@@ -665,10 +667,54 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
             except Exception:
                 new_output = "(could not retrieve output)"
         else:
-            # Enhanced monitoring for running processes - simplified approach
-            cmd_info = shell_info.get('command', 'unknown')
-            runtime = time.time() - shell_info.get('started_at', 0)
-            new_output = f"Process is still running (PID: {process.pid})\nCommand: {cmd_info}\nRuntime: {runtime:.1f}s\n\n🔄 Use this tool again to check for updates or wait for completion."
+            # For running processes - get incremental output
+            try:
+                # Try to read new output without blocking
+                import select
+                
+                current_buffer = shell_info.get("output_buffer", "")
+                last_position = shell_info.get("last_position", 0)
+                
+                # Try non-blocking read if data is available
+                if hasattr(select, 'select') and process.stdout:
+                    ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                    if ready:
+                        try:
+                            # Read available data in chunks to avoid blocking
+                            import fcntl
+                            import os
+                            
+                            fd = process.stdout.fileno()
+                            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+                            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+                            
+                            try:
+                                chunk = process.stdout.read(4096)
+                                if chunk:
+                                    current_buffer += chunk.decode('utf-8', errors='ignore')
+                                    shell_info["output_buffer"] = current_buffer
+                            except (BlockingIOError, OSError):
+                                pass  # No data available right now
+                            finally:
+                                fcntl.fcntl(fd, fcntl.F_SETFL, fl)  # Restore blocking mode
+                                
+                        except (ImportError, AttributeError, OSError):
+                            # Fallback for systems without fcntl
+                            pass
+                
+                # Return only NEW output since last check
+                new_output = current_buffer[last_position:]
+                shell_info["last_position"] = len(current_buffer)
+                
+                # If no new output, provide status
+                if not new_output.strip():
+                    runtime = time.time() - shell_info.get('started_at', 0)
+                    new_output = f"[Running for {runtime:.1f}s, PID: {process.pid}] No new output yet..."
+                    
+            except Exception as e:
+                # Fallback to basic status
+                runtime = time.time() - shell_info.get('started_at', 0)
+                new_output = f"Process running (PID: {process.pid}, {runtime:.1f}s). Error getting output: {str(e)}"
 
         # Apply filter if provided
         if filter and new_output:
