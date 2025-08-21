@@ -665,29 +665,10 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
             except Exception:
                 new_output = "(could not retrieve output)"
         else:
-            # Enhanced monitoring for running processes
-            try:
-                # Try to get partial output (non-blocking)
-                import select
-                
-                if hasattr(select, 'select') and process.stdout:
-                    # Unix-like systems - use select for non-blocking read
-                    ready, _, _ = select.select([process.stdout], [], [], 0.1)
-                    if ready:
-                        partial_output = process.stdout.read()
-                        if partial_output:
-                            new_output += partial_output.decode('utf-8', errors='ignore')
-                    
-                if not new_output:
-                    # Provide enhanced status information
-                    cmd_info = shell_info.get('command', 'unknown')
-                    runtime = time.time() - shell_info.get('started_at', 0)
-                    new_output = f"Process is still running (PID: {process.pid})\nCommand: {cmd_info}\nRuntime: {runtime:.1f}s\n\n🔄 Use this tool again to check for updates..."
-                    
-            except Exception:
-                # Fallback to basic status
-                runtime = time.time() - shell_info.get('started_at', 0)
-                new_output = f"Process is still running (PID: {process.pid}, runtime: {runtime:.1f}s). Check again later or wait for completion."
+            # Enhanced monitoring for running processes - simplified approach
+            cmd_info = shell_info.get('command', 'unknown')
+            runtime = time.time() - shell_info.get('started_at', 0)
+            new_output = f"Process is still running (PID: {process.pid})\nCommand: {cmd_info}\nRuntime: {runtime:.1f}s\n\n🔄 Use this tool again to check for updates or wait for completion."
 
         # Apply filter if provided
         if filter and new_output:
