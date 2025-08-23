@@ -35,9 +35,13 @@ Reads a file from the local filesystem. You can access any file directly by usin
       "type": "string",
       "description": "The absolute path to the file to read"
     },
-    "offset": {
+    "line_number": {
       "type": "number",
       "description": "The line number to start reading from. Only provide if the file is too large to read at once"
+    },
+    "reading_mode": {
+      "type": "string",
+      "description": "The mode to read the file: 'middle', 'top', 'bottom' - middle: read limit lines with line_number as the middle line, top: read limit lines with line_number as the first line, bottom: read limit lines with line_number as the last line"
     },
     "limit": {
       "type": "number",

@@ -4,134 +4,101 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python-based coding agent implementation that mimics Claude Code functionality. The project implements a command-line tool with essential coding capabilities using LangChain and Anthropic's API.
-
-## Architecture
-
-The codebase is structured as a single-file Python application (`coding_agent.py`) with the following key components:
-
-### Core Components
-
-- **CodingAgent Class**: Main orchestrator that manages LLM interactions, tool execution, and conversation state
-- **Tool System**: Collection of essential coding tools implemented as LangChain tools:
-  - File operations: Read, Write, Edit, MultiEdit
-  - Directory operations: LS, Glob, Grep  
-  - Command execution: Bash, BashOutput
-  - Task management: TodoWrite
-- **Message Management**: Handles conversation history with caching optimization using Anthropic's cache control
-- **Background Shell Support**: Allows long-running commands via background bash processes
-
-### Key Files
-
-- `coding_agent.py` - Main implementation with all tools and agent logic
-- `data/` - Contains sample API requests and outputs for testing/reference
-- `docs/claude-code/` - Documentation for individual tools (reference only)
+This is a Python-based coding agent that replicates Claude Code functionality using LangChain and Anthropic's API. The project demonstrates reverse engineering of Claude Code through API interception and reimplementation of essential coding tools.
 
 ## Development Commands
 
-### Project Setup
-
+### Environment Setup
 ```bash
-# Install dependencies using uv (recommended)
+# Install dependencies
 uv sync
 
-# Activate virtual environment
-source .venv/bin/activate  # On Unix/macOS
-# or
-.venv\Scripts\activate     # On Windows
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your ANTHROPIC_API_KEY and optional LANGSMITH_* keys
 ```
 
 ### Running the Agent
-
 ```bash
-# Using uv (recommended)
+# Primary way to run (recommended)
 uv run python coding_agent.py
 
-# Or with activated venv
+# Alternative with activated venv
+source .venv/bin/activate
 python coding_agent.py
-
-# When prompted, choose:
-# 1 - Run demo
-# 2 - Interactive mode
 ```
 
-### Development Tools
-
+### Code Quality
 ```bash
 # Format code
-uv run black coding_agent.py
+uv run black .
 
 # Lint code
-uv run ruff check coding_agent.py
+uv run ruff check .
+uv run ruff check . --fix  # Auto-fix issues
 
-# Run tests
+# Run tests (if any exist)
 uv run pytest
 ```
 
-### Dependencies
+## Architecture
 
-The project uses:
-- `langchain-anthropic>=0.1.0` - For LLM integration
-- `langchain-core>=0.1.0` - Core LangChain functionality  
-- `python-dotenv>=1.0.0` - Environment variable management
-- `colorama>=0.4.0` - Terminal color output
+### Core Components
 
-Development dependencies:
-- `pytest>=7.0.0` - Testing framework
-- `black>=23.0.0` - Code formatter
-- `ruff>=0.1.0` - Fast Python linter
+**coding_agent.py** - Single-file implementation containing:
+- `CodingAgent` class: Main agent orchestrator with LangChain integration
+- Tool implementations: Read, Write, LS, Glob, Bash, BashOutput, TodoWrite
+- Interactive CLI with keyboard interrupt handling and background process management
+- System prompt engineering that mirrors Claude Code behavior
 
-External dependencies:
-- `ripgrep` (rg) - Required for Grep tool functionality. Install via system package manager or from https://github.com/BurntSushi/ripgrep
+### Key Design Patterns
 
-### Environment Setup
+**Tool Architecture**: Each tool is implemented as a `@tool` decorated function with comprehensive docstrings that serve as both documentation and prompt engineering. The tool descriptions are critical - they are described as "MASTER PIECES of prompt engineering" and should not be modified unless there's a specific bug.
 
-Environment configuration is required for the agent to work:
+**Background Process Management**: Global tracking system (`_background_shells`) for managing long-running bash processes with cancellation support via Esc key or Ctrl+C.
 
-1. **Copy the example environment file:**
-   ```bash
-   cp .env.example .env
-   ```
+**Caching Strategy**: Uses Anthropic's ephemeral caching on the last tool and system/user messages to optimize API calls.
 
-2. **Configure required variables in `.env`:**
-   - `ANTHROPIC_API_KEY` - Required for LLM API access (get from https://console.anthropic.com/)
-   - `LANGSMITH_*` variables - Optional LangSmith tracing configuration (get from https://smith.langchain.com/)
+**Message Flow**: Maintains conversation history with SystemMessage + HumanMessage + ToolMessage pattern, following LangChain conventions.
 
-## Code Conventions
+## Dependencies
 
-- **Model**: Uses `claude-sonnet-4-20250514` by default (configurable via `MODEL_NAME` constant)
-- **Error Handling**: Tools return descriptive error messages rather than raising exceptions
-- **File Paths**: All file operations require absolute paths
-- **Caching**: Uses Anthropic's ephemeral cache control for system prompts and recent messages to optimize token usage
-- **Tool Organization**: Each tool is implemented as a `@tool` decorated function with comprehensive docstrings
+### Required External Tools
+- **ripgrep (rg)**: Essential for Grep tool functionality. Install via:
+  - macOS: `brew install ripgrep`
+  - Ubuntu/Debian: `sudo apt install ripgrep`
+  - Windows: `winget install BurntSushi.ripgrep.MSVC`
 
-## Tool Implementation Patterns
+### Python Dependencies
+- `langchain-anthropic`: Core LLM integration
+- `langchain-core`: Tool and message abstractions
+- `python-dotenv`: Environment variable management
+- `colorama`: Terminal color output
 
-- **File Operations**: Always validate paths and provide clear error messages
-- **Command Execution**: Support both synchronous and background execution modes
-- **Search Operations**: Implement both file-based (Glob) and content-based (Grep) searching
-- **State Management**: Maintain conversation history and background process tracking
-- **TodoWrite**: NEVER, EVER modify this tool - it's a master piece of engineering with intentionally minimalist implementation
+## Environment Variables
 
-## CRITICAL: Tool Description Preservation
+Required:
+- `ANTHROPIC_API_KEY`: Get from https://console.anthropic.com/
 
-⚠️ **NEVER modify tool descriptions in `docs/claude-code/*.md`** - they are MASTER PIECES of prompt engineering from Claude Code reverse engineering. Only change if there's a specific bug or non-existent tool/code referenced.
+Optional (for tracing):
+- `LANGSMITH_TRACING=true`
+- `LANGSMITH_API_KEY`: Get from https://smith.langchain.com/
+- `LANGSMITH_PROJECT`: Your project name
 
-## Testing
+## Interactive Commands
 
-No automated test framework is currently configured. The project includes a demo mode that exercises core functionality.
+Within the agent CLI:
+- `quit`/`exit`: Exit the agent
+- `reset`: Reset conversation history
+- `pwd`: Show current working directory
+- `cd <path>`: Change working directory
+- `/init`: Analyze codebase and create/update CLAUDE.md
+- `Ctrl+C` or `Esc`: Cancel long-running tool execution
 
-## Development Workflow
+## Reverse Engineering Documentation
 
-When modifying this codebase:
-1. Test changes using the interactive mode
-2. Verify all tools work correctly with the demo scenarios
-3. Ensure error handling is robust for edge cases
-4. Maintain the single-file architecture unless refactoring is necessary
+The `docs/` directory contains extracted Claude Code system prompts and tool descriptions from API interception using Proxyman. The `data/` directory contains sample API requests/responses. These serve as reference for maintaining fidelity to original Claude Code behavior.
 
-## Key Implementation Details
+## Example Projects
 
-- Background shell processes are tracked in `_background_shells` global dictionary
-- Message caching optimizes token usage by marking system prompts and recent messages with cache control
-- Tools are converted to Anthropic format with the last tool receiving cache control for optimization
-- Working directory is maintained as instance state to support `cd` operations
+The `example_projects/` directory contains generated projects (caro game, expense trackers) that demonstrate the agent's capabilities. These are excluded from git via `.gitignore`.

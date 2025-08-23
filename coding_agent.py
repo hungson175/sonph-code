@@ -91,14 +91,14 @@ class TodoItem(TypedDict):
 
 
 @tool("Read")
-def read_file(file_path: str, line_number: int = None, reading_mode: str = None, limit: int = None) -> str:
+def read_file(file_path: str, offset: int = None, limit: int = None) -> str:
     """Reads a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
     ## Usage Guidelines
 
     - **File path must be absolute**, not relative
     - By default, reads up to 2000 lines starting from the beginning
-    - You can optionally specify line_number, reading_mode and limit for long files
+    - You can optionally specify line offset and limit for long files
     - Lines longer than 2000 characters will be truncated
     - Results returned using `cat -n` format, with line numbers starting at 1
 
@@ -117,8 +117,7 @@ def read_file(file_path: str, line_number: int = None, reading_mode: str = None,
 
         Args:
             file_path: The absolute path to the file to read
-            line_number: The line number to start reading from. Only provide if the file is too large to read at once
-            reading_mode: The mode to read the file: 'middle', 'up', 'down' - middle: read limit lines with line_number as the middle line, up: read limit lines with line_number as the first line, down: read limit lines with line_number as the last line
+            offset: The line number to start reading from. Only provide if the file is too large to read at once
             limit: The number of lines to read. Only provide if the file is too large to read at once.
         Returns:
             File contents in cat -n format with line numbers, or error message
@@ -127,34 +126,9 @@ def read_file(file_path: str, line_number: int = None, reading_mode: str = None,
         with open(file_path, "r") as f:
             lines = f.readlines()
 
-        # Apply line_number, reading_mode and limit if provided
-        total_lines = len(lines)
-        
-        if line_number is None:
-            # Default: read from beginning
-            start = 0
-            end = min(2000, total_lines)
-        else:
-            # Convert to 0-based index
-            line_idx = line_number - 1
-            
-            if reading_mode == 'middle':
-                # Read with line_number as middle
-                half_limit = (limit or 50) // 2
-                start = max(0, line_idx - half_limit)
-                end = min(total_lines, line_idx + half_limit + 1)
-            elif reading_mode == 'up':
-                # Read with line_number as first line
-                start = line_idx
-                end = min(total_lines, start + (limit or 50))
-            elif reading_mode == 'down':
-                # Read with line_number as last line
-                end = min(total_lines, line_idx + 1)
-                start = max(0, end - (limit or 50))
-            else:
-                # Default behavior (like 'up')
-                start = line_idx
-                end = min(total_lines, start + (limit or 50))
+        # Apply offset and limit if provided
+        start = (offset - 1) if offset else 0
+        end = start + limit if limit else min(start + 2000, len(lines))
 
         # Format with line numbers like cat -n
         result = []
@@ -1220,6 +1194,7 @@ def interactive():
     print(Fore.WHITE + "  'reset' - Clear conversation history")
     print(Fore.WHITE + "  'cd <dir>' - Change working directory")
     print(Fore.WHITE + "  'pwd' - Show current working directory")
+    print(Fore.WHITE + "  '/init' - Analyze codebase and create CLAUDE.md")
     print(Fore.YELLOW + "\nYou can ask me to:")
     print(Fore.WHITE + "  - Read and analyze code")
     print(Fore.WHITE + "  - Write new files or modify existing ones")
@@ -1253,6 +1228,46 @@ def interactive():
                 agent.set_working_dir(new_dir)
             else:
                 print(Fore.RED + f"❌ Directory not found: {new_dir}")
+            continue
+
+        # Handle /init command
+        if user_input.strip() == "/init":
+            print(Fore.CYAN + "\n🔍 init is analyzing your codebase…")
+
+            # Hardcoded init command prompt
+            init_prompt = """Please analyze this codebase and create a CLAUDE.md file, which will be given to future instances of Claude Code to operate in this repository.
+            
+What to add:
+1. Commands that will be commonly used, such as how to build, lint, and run tests. Include the necessary commands to develop in this codebase, such as how to run a single test.
+2. High-level code architecture and structure so that future instances can be productive more quickly. Focus on the "big picture" architecture that requires reading multiple files to understand
+
+Usage notes:
+- If there's already a CLAUDE.md, suggest improvements to it.
+- When you make the initial CLAUDE.md, do not repeat yourself and do not include obvious instructions like "Provide helpful error messages to users", "Write unit tests for all new utilities", "Never include sensitive information (API keys, tokens) in code or commits" 
+- Avoid listing every component or file structure that can be easily discovered
+- Don't include generic development practices
+- If there are Cursor rules (in .cursor/rules/ or .cursorrules) or Copilot rules (in .github/copilot-instructions.md), make sure to include the important parts.
+- If there is a README.md, make sure to include the important parts. 
+- Do not make up information such as "Common Development Tasks", "Tips for Development", "Support and Documentation" unless this is expressly included in other files that you read.
+- Be sure to prefix the file with the following text:
+
+```
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+```"""
+
+            # Create the full init message
+            full_message = f"""<command-message>init is analyzing your codebase…</command-message>
+<command-name>/init</command-name>
+
+{init_prompt}"""
+
+            try:
+                response = agent.chat(full_message)
+                print(Fore.GREEN + f"\n🤖 Agent: {response}")
+            except Exception as e:
+                print(Fore.RED + f"❌ Error executing /init: {str(e)}")
             continue
 
         try:
