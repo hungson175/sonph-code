@@ -46,6 +46,9 @@ class Config:
     def __init__(self):
         load_dotenv()
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not self.anthropic_api_key:
+            raise ValueError("ANTHROPIC_API_KEY environment variable is required")
+        
         self.langsmith_tracing = os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
         self.langsmith_api_key = os.getenv("LANGSMITH_API_KEY")
         self.langsmith_project = os.getenv("LANGSMITH_PROJECT", "coding-agent")
@@ -56,26 +59,44 @@ config = Config()
 # Initialize colorama
 init(autoreset=True)
 
-# Global tracking for background shells
-_background_shells = {}
+class BackgroundShellManager:
+    """Manages background shell processes and cancellation."""
+    
+    def __init__(self):
+        self.background_shells = {}
+        self.current_process = None
+        self.cancellation_requested = False
+    
+    def reset_cancellation(self):
+        self.cancellation_requested = False
+    
+    def request_cancellation(self):
+        self.cancellation_requested = True
+        if self.current_process:
+            try:
+                self.current_process.terminate()
+            except Exception:
+                pass
+    
+    def add_shell(self, shell_id: str, shell_info: dict):
+        self.background_shells[shell_id] = shell_info
+    
+    def get_shell(self, shell_id: str):
+        return self.background_shells.get(shell_id)
+    
+    def list_shells(self):
+        return list(self.background_shells.keys())
 
-# Global cancellation system
-_current_process = None
-_cancellation_requested = False
+# Global shell manager instance
+_shell_manager = BackgroundShellManager()
 
 
 def setup_keyboard_interrupt():
     """Setup keyboard interrupt handling for Esc key"""
 
-    def signal_handler(signum, frame):
-        global _cancellation_requested, _current_process
-        _cancellation_requested = True
-        if _current_process:
-            try:
-                _current_process.terminate()
-                print(f"\n{Fore.YELLOW}⚠️  Process cancelled by user (Esc pressed)")
-            except Exception:
-                pass
+    def signal_handler(*_):
+        _shell_manager.request_cancellation()
+        print(f"\n{Fore.YELLOW}⚠️  Process cancelled by user (Esc pressed)")
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -94,13 +115,12 @@ def start_keyboard_monitor():
                 old_settings = termios.tcgetattr(sys.stdin)
                 tty.setraw(sys.stdin.fileno())
 
-                while not _cancellation_requested:
+                while not _shell_manager.cancellation_requested:
                     if select.select([sys.stdin], [], [], Config.KEYBOARD_POLL_INTERVAL)[0]:
                         key = sys.stdin.read(1)
                         if ord(key) == Config.ESC_KEY_CODE:  # Esc key
-                            global _current_process
-                            if _current_process:
-                                _current_process.terminate()
+                            if _shell_manager.current_process:
+                                _shell_manager.current_process.terminate()
                                 print(
                                     f"\n{Fore.YELLOW}⚠️  Tool execution cancelled (Esc pressed)"
                                 )
@@ -170,12 +190,30 @@ def load_memory_context() -> str:
     return "\n".join(context_parts)
 
 
+class CustomCommand:
+    """Represents a single custom command."""
+    
+    def __init__(self, name: str, template: str):
+        self.name = name
+        self.template = template
+    
+    def process(self, arguments: str = "") -> str:
+        """Process command with arguments."""
+        processed_template = self.template.replace("$ARGUMENTS", arguments)
+        
+        return f"""<command-message>Executing custom command: /{self.name}</command-message>
+<command-name>/{self.name}</command-name>
+<command-arguments>{arguments}</command-arguments>
+
+{processed_template}"""
+
+
 class CustomCommandManager:
     """Manages custom commands from ~/.claude/commands directory."""
 
     def __init__(self):
         self.commands_dir = Path.home() / ".claude" / "commands"
-        self.commands_cache: Dict[str, str] = {}
+        self.commands_cache: Dict[str, CustomCommand] = {}
         self.last_scan_time = 0
         self.cache_duration = Config.CACHE_DURATION_SECONDS
 
@@ -199,7 +237,7 @@ class CustomCommandManager:
                 try:
                     with open(command_file, "r", encoding="utf-8") as f:
                         content = f.read().strip()
-                    self.commands_cache[command_name] = content
+                    self.commands_cache[command_name] = CustomCommand(command_name, content)
                 except Exception as e:
                     print(f"{Fore.YELLOW}⚠️  Could not load command {command_name}: {e}")
 
@@ -208,8 +246,8 @@ class CustomCommandManager:
         except Exception as e:
             print(f"{Fore.YELLOW}⚠️  Could not scan commands directory: {e}")
 
-    def get_command(self, command_name: str) -> Optional[str]:
-        """Get a command template by name."""
+    def get_command(self, command_name: str) -> Optional[CustomCommand]:
+        """Get a command by name."""
         self._scan_commands()
         return self.commands_cache.get(command_name)
 
@@ -218,23 +256,6 @@ class CustomCommandManager:
         self._scan_commands()
         return list(self.commands_cache.keys())
 
-    def process_command(self, command_name: str, arguments: str = "") -> str:
-        """Process a custom command by replacing $ARGUMENTS placeholder."""
-        template = self.get_command(command_name)
-        if not template:
-            return None
-
-        # Replace $ARGUMENTS placeholder with actual arguments
-        processed_template = template.replace("$ARGUMENTS", arguments)
-
-        # Create the command message format
-        command_message = f"""<command-message>Executing custom command: /{command_name}</command-message>
-<command-name>/{command_name}</command-name>
-<command-arguments>{arguments}</command-arguments>
-
-{processed_template}"""
-
-        return command_message
 
 
 # ================== Essential Coding Tools ==================
@@ -469,10 +490,9 @@ def run_command(
     """
     try:
         timeout = min(timeout, 600)  # Cap at 10 minutes
-        global _background_shells, _current_process, _cancellation_requested
-
+        
         # Reset cancellation flag
-        _cancellation_requested = False
+        _shell_manager.reset_cancellation()
 
         # Enhanced git operation guidance
         def provide_git_guidance(cmd: str) -> str:
@@ -515,7 +535,7 @@ def run_command(
             shell_id = str(uuid.uuid4())[:8]
 
             # Store background shell info
-            _background_shells[shell_id] = {
+            shell_info = {
                 "process": process,
                 "command": command,
                 "started_at": time.time(),
@@ -523,12 +543,13 @@ def run_command(
                 "output_buffer": "",  # Store accumulated output
                 "last_position": 0,  # Track what we've already returned
             }
+            _shell_manager.add_shell(shell_id, shell_info)
 
             return f"Background shell started with ID: {shell_id}\nCommand: {command}\nUse BashOutput tool with bash_id='{shell_id}' to monitor output."
 
         else:
             # Run synchronously with cancellation support
-            _current_process = subprocess.Popen(
+            _shell_manager.current_process = subprocess.Popen(
                 command,
                 shell=True,
                 stdout=subprocess.PIPE,
@@ -539,18 +560,18 @@ def run_command(
 
             try:
                 # Wait for process with timeout, checking for cancellation
-                stdout, stderr = _current_process.communicate(timeout=timeout)
-                result_code = _current_process.returncode
-                _current_process = None
+                stdout, stderr = _shell_manager.current_process.communicate(timeout=timeout)
+                result_code = _shell_manager.current_process.returncode
+                _shell_manager.current_process = None
 
                 # Check if cancelled
-                if _cancellation_requested:
+                if _shell_manager.cancellation_requested:
                     return f"{Fore.YELLOW}⚠️  Command cancelled by user (Esc pressed)"
 
             except subprocess.TimeoutExpired:
-                _current_process.terminate()
-                _current_process.wait()
-                _current_process = None
+                _shell_manager.current_process.terminate()
+                _shell_manager.current_process.wait()
+                _shell_manager.current_process = None
                 return f"Command timed out after {timeout} seconds"
 
             output = ""
@@ -947,12 +968,9 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
         Returns:
             Shell output and status, or error message
     """
-    global _background_shells
-
-    if bash_id not in _background_shells:
-        return f"Background shell with ID '{bash_id}' not found. Available shells: {list(_background_shells.keys())}"
-
-    shell_info = _background_shells[bash_id]
+    shell_info = _shell_manager.get_shell(bash_id)
+    if not shell_info:
+        return f"Background shell with ID '{bash_id}' not found. Available shells: {_shell_manager.list_shells()}"
     process = shell_info["process"]
 
     try:
@@ -1244,30 +1262,8 @@ class CodingAgent:
         # Setup LLM
         self.llm = ChatAnthropic(model=model_name, temperature=0.0, max_tokens=16384)
 
-        # Tools for execution
-        self.tools = [
-            read_file,
-            write_file,
-            edit_file,
-            run_command,
-            list_files,
-            glob_files,
-            grep_files,
-            get_bash_output,
-            todo_write,
-        ]
-        self.tools_map = {tool.name: tool for tool in self.tools}
-
-        # Convert tools with caching on LAST tool only
-        cached_tools = []
-        for i, tool_obj in enumerate(self.tools):
-            anthropic_tool = convert_to_anthropic_tool(tool_obj)
-            if i == len(self.tools) - 1:
-                anthropic_tool["cache_control"] = {"type": "ephemeral"}
-            cached_tools.append(anthropic_tool)
-
-        # Bind tools
-        self.llm_with_tools = self.llm.bind_tools(cached_tools)
+        # Setup tools
+        self.tools, self.tools_map, self.llm_with_tools = self._setup_tools()
 
         # System prompt with tools description
         tools_desc = "\n\nAvailable tools:\n"
@@ -1279,15 +1275,7 @@ class CodingAgent:
 
         # Initialize messages with cached system prompt
         self.messages: List = [
-            SystemMessage(
-                content=[
-                    {
-                        "type": "text",
-                        "text": self.system_prompt_str,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ]
-            )
+            SystemMessage(content=self._create_cached_message(self.system_prompt_str))
         ]
 
         # Add memory context as the first user message if it exists
@@ -1295,32 +1283,60 @@ class CodingAgent:
             self.memory_context and len(self.memory_context.strip()) > 100
         ):  # Only if substantial content
             self.messages.append(
-                HumanMessage(
-                    content=[
-                        {
-                            "type": "text",
-                            "text": self.memory_context,
-                            "cache_control": {"type": "ephemeral"},
-                        }
-                    ]
-                )
+                HumanMessage(content=self._create_cached_message(self.memory_context))
             )
 
         self.working_dir = "."
+
+    def _setup_tools(self):
+        """Setup tools with caching and create tools map."""
+        tools = [
+            read_file,
+            write_file,
+            edit_file,
+            run_command,
+            list_files,
+            glob_files,
+            grep_files,
+            get_bash_output,
+            todo_write,
+        ]
+        tools_map = {tool.name: tool for tool in tools}
+
+        # Convert tools with caching on LAST tool only
+        cached_tools = []
+        for i, tool_obj in enumerate(tools):
+            anthropic_tool = convert_to_anthropic_tool(tool_obj)
+            if i == len(tools) - 1:
+                anthropic_tool["cache_control"] = {"type": "ephemeral"}
+            cached_tools.append(anthropic_tool)
+
+        # Bind tools to LLM
+        llm_with_tools = self.llm.bind_tools(cached_tools)
+        
+        return tools, tools_map, llm_with_tools
+
+    def _create_cached_message(self, content: str):
+        """Create a message with cache control."""
+        return [
+            {
+                "type": "text", 
+                "text": content,
+                "cache_control": {"type": "ephemeral"}
+            }
+        ]
+
+    def _remove_cache_control(self, message):
+        """Remove cache control from message for reuse."""
+        if hasattr(message, 'content') and isinstance(message.content, list):
+            if len(message.content) > 0 and isinstance(message.content[0], dict):
+                message.content[0].pop("cache_control", None)
 
     def chat(self, user_input: str) -> str:
         """Process user coding request."""
         # Add user message with cache control
         self.messages.append(
-            HumanMessage(
-                content=[
-                    {
-                        "type": "text",
-                        "text": user_input,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ]
-            )
+            HumanMessage(content=self._create_cached_message(user_input))
         )
 
         # Get initial response
@@ -1339,7 +1355,7 @@ class CodingAgent:
         print(Fore.YELLOW + "=" * 20)
 
         # Remove cache_control from user message
-        self.messages[-1].content[0].pop("cache_control", None)
+        self._remove_cache_control(self.messages[-1])
 
         # Add response
         self.messages.append(response)
@@ -1392,16 +1408,10 @@ class CodingAgent:
 
             # add cache_control
             last_message = self.messages[-1]
-            self.messages[-1].content = [
-                {
-                    "type": "text",
-                    "text": last_message.content,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ]
+            self.messages[-1].content = self._create_cached_message(last_message.content)
             response = self.llm_with_tools.invoke(self.messages)
             # remove cache_control mark for reuse later on
-            self.messages[-1].content[0].pop("cache_control", None)
+            self._remove_cache_control(self.messages[-1])
 
             self.messages.append(response)
             usage = response.response_metadata.get("usage", {})
@@ -1593,13 +1603,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
             arguments = parts[1] if len(parts) > 1 else ""
 
             # Check if this is a custom command
-            if agent.command_manager.get_command(command_name):
+            command = agent.command_manager.get_command(command_name)
+            if command:
                 print(Fore.CYAN + f"\n🔧 Executing custom command: /{command_name}")
 
                 # Process the command
-                processed_message = agent.command_manager.process_command(
-                    command_name, arguments
-                )
+                processed_message = command.process(arguments)
 
                 try:
                     response = agent.chat(processed_message)

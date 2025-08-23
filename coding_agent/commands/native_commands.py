@@ -1,15 +1,13 @@
-# /init Command Implementation - Save for later
+"""Native built-in commands for the coding agent."""
 
-# 1. Add to help menu (around line 1316):
-print(Fore.WHITE + "  '/init' - Analyze codebase and create CLAUDE.md")
 
-# 2. Add handler in interactive loop (around line 1357, before the try block):
-        # Handle /init command
-        if user_input.strip() == "/init":
-            print(Fore.CYAN + "\n🔍 init is analyzing your codebase…")
-
-            # Hardcoded init command prompt
-            init_prompt = """Please analyze this codebase and create a CLAUDE.md file, which will be given to future instances of Claude Code to operate in this repository.
+class InitCommand:
+    """Built-in /init command for analyzing codebase and creating CLAUDE.md"""
+    
+    @staticmethod
+    def get_init_prompt() -> str:
+        """Get the init command prompt."""
+        return """Please analyze this codebase and create a CLAUDE.md file, which will be given to future instances of Claude Code to operate in this repository.
             
 What to add:
 1. Commands that will be commonly used, such as how to build, lint, and run tests. Include the necessary commands to develop in this codebase, such as how to run a single test.
@@ -31,15 +29,36 @@ Usage notes:
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 ```"""
 
-            # Create the full init message
-            full_message = f"""<command-message>init is analyzing your codebase…</command-message>
+    @staticmethod
+    def process() -> str:
+        """Process the /init command."""
+        init_prompt = InitCommand.get_init_prompt()
+        
+        return f"""<command-message>init is analyzing your codebase…</command-message>
 <command-name>/init</command-name>
 
 {init_prompt}"""
 
-            try:
-                response = agent.chat(full_message)
-                print(Fore.GREEN + f"\n🤖 Agent: {response}")
-            except Exception as e:
-                print(Fore.RED + f"❌ Error executing /init: {str(e)}")
-            continue
+
+class NativeCommandManager:
+    """Manages built-in native commands."""
+    
+    def __init__(self):
+        self.native_commands = {
+            'init': InitCommand()
+        }
+    
+    def is_native_command(self, command_name: str) -> bool:
+        """Check if a command is a native command."""
+        return command_name in self.native_commands
+    
+    def process_native_command(self, command_name: str, _arguments: str = "") -> str:
+        """Process a native command."""
+        if command_name == 'init':
+            return InitCommand.process()
+        
+        return f"Unknown native command: {command_name}"
+    
+    def list_native_commands(self) -> list:
+        """List all native commands."""
+        return list(self.native_commands.keys())
