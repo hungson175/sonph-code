@@ -6,25 +6,52 @@ CRITICAL: Tool descriptions are MASTER PIECES of prompt engineering.
 NEVER modify unless there's a specific bug or non-existent tool/code.
 """
 
-from datetime import datetime
-from langchain_anthropic import ChatAnthropic, convert_to_anthropic_tool
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
-from langchain_core.tools import tool
-from typing import List, TypedDict
-from dotenv import load_dotenv
-import subprocess
-import os
+# Standard library imports
 import glob
+import os
+import signal
+import subprocess
+import threading
 import time
 import uuid
-import threading
-import signal
-from colorama import init, Fore, Style
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, TypedDict
 
-MODEL_NAME = "claude-sonnet-4-20250514"
+# Third-party imports
+from colorama import Fore, Style, init
+from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic, convert_to_anthropic_tool
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import tool
 
-# Load environment variables
-load_dotenv()
+# ================== Configuration ==================
+
+class Config:
+    """Centralized configuration management."""
+    
+    # Model and API settings
+    MODEL_NAME = "claude-sonnet-4-20250514"
+    
+    # Timing settings
+    CACHE_DURATION_SECONDS = 60
+    KEYBOARD_POLL_INTERVAL = 0.1
+    BACKGROUND_SHELL_TIMEOUT_MS = 120000  # 2 minutes in milliseconds
+    
+    # UI and display settings
+    ESC_KEY_CODE = 27
+    DEFAULT_READ_LIMIT = 2000
+    MAX_OUTPUT_LENGTH = 30000
+    
+    def __init__(self):
+        load_dotenv()
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        self.langsmith_tracing = os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
+        self.langsmith_api_key = os.getenv("LANGSMITH_API_KEY")
+        self.langsmith_project = os.getenv("LANGSMITH_PROJECT", "coding-agent")
+
+# Global configuration instance
+config = Config()
 
 # Initialize colorama
 init(autoreset=True)
@@ -36,8 +63,10 @@ _background_shells = {}
 _current_process = None
 _cancellation_requested = False
 
+
 def setup_keyboard_interrupt():
     """Setup keyboard interrupt handling for Esc key"""
+
     def signal_handler(signum, frame):
         global _cancellation_requested, _current_process
         _cancellation_requested = True
@@ -47,38 +76,165 @@ def setup_keyboard_interrupt():
                 print(f"\n{Fore.YELLOW}⚠️  Process cancelled by user (Esc pressed)")
             except Exception:
                 pass
-    
+
     signal.signal(signal.SIGINT, signal_handler)
+
 
 def start_keyboard_monitor():
     """Start monitoring for Esc key in a separate thread"""
+
     def monitor_keyboard():
         try:
             import sys
             import select
             import tty
             import termios
+
             if sys.stdin.isatty():
                 old_settings = termios.tcgetattr(sys.stdin)
                 tty.setraw(sys.stdin.fileno())
-                
+
                 while not _cancellation_requested:
-                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                    if select.select([sys.stdin], [], [], Config.KEYBOARD_POLL_INTERVAL)[0]:
                         key = sys.stdin.read(1)
-                        if ord(key) == 27:  # Esc key
+                        if ord(key) == Config.ESC_KEY_CODE:  # Esc key
                             global _current_process
                             if _current_process:
                                 _current_process.terminate()
-                                print(f"\n{Fore.YELLOW}⚠️  Tool execution cancelled (Esc pressed)")
+                                print(
+                                    f"\n{Fore.YELLOW}⚠️  Tool execution cancelled (Esc pressed)"
+                                )
                                 break
-                
+
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
         except Exception:
             pass  # Fallback gracefully if terminal handling fails
-    
+
     thread = threading.Thread(target=monitor_keyboard, daemon=True)
     thread.start()
     return thread
+
+
+def load_memory_context() -> str:
+    """Load memory context from global and project CLAUDE.md files."""
+    context_parts = []
+
+    # Try to load global CLAUDE.md from ~/.claude/CLAUDE.md
+    global_claude_path = Path.home() / ".claude" / "CLAUDE.md"
+    project_claude_path = Path(".") / "CLAUDE.md"
+
+    context_parts.append("<system-reminder>")
+    context_parts.append(
+        "As you answer the user's questions, you can use the following context:"
+    )
+    context_parts.append("# claudeMd")
+    context_parts.append(
+        "Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written."
+    )
+    context_parts.append("")
+
+    # Load global instructions if they exist
+    if global_claude_path.exists():
+        try:
+            with open(global_claude_path, "r", encoding="utf-8") as f:
+                global_content = f.read().strip()
+            context_parts.append(
+                f"Contents of {global_claude_path} (user's private global instructions for all projects):"
+            )
+            context_parts.append("")
+            context_parts.append(global_content)
+            context_parts.append("")
+        except Exception as e:
+            print(f"{Fore.YELLOW}⚠️  Could not load global CLAUDE.md: {e}")
+
+    # Load project instructions if they exist
+    if project_claude_path.exists():
+        try:
+            with open(project_claude_path, "r", encoding="utf-8") as f:
+                project_content = f.read().strip()
+            context_parts.append(
+                f"Contents of {project_claude_path.resolve()} (project instructions, checked into the codebase):"
+            )
+            context_parts.append("")
+            context_parts.append(project_content)
+            context_parts.append("")
+        except Exception as e:
+            print(f"{Fore.YELLOW}⚠️  Could not load project CLAUDE.md: {e}")
+
+    context_parts.append("      ")
+    context_parts.append(
+        "      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task."
+    )
+    context_parts.append("</system-reminder>")
+
+    return "\n".join(context_parts)
+
+
+class CustomCommandManager:
+    """Manages custom commands from ~/.claude/commands directory."""
+
+    def __init__(self):
+        self.commands_dir = Path.home() / ".claude" / "commands"
+        self.commands_cache: Dict[str, str] = {}
+        self.last_scan_time = 0
+        self.cache_duration = Config.CACHE_DURATION_SECONDS
+
+    def _scan_commands(self) -> None:
+        """Scan the commands directory and cache command templates."""
+        if not self.commands_dir.exists():
+            return
+
+        current_time = time.time()
+        if (
+            current_time - self.last_scan_time < self.cache_duration
+            and self.commands_cache
+        ):
+            return  # Use cached commands
+
+        self.commands_cache.clear()
+
+        try:
+            for command_file in self.commands_dir.glob("*.md"):
+                command_name = command_file.stem
+                try:
+                    with open(command_file, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                    self.commands_cache[command_name] = content
+                except Exception as e:
+                    print(f"{Fore.YELLOW}⚠️  Could not load command {command_name}: {e}")
+
+            self.last_scan_time = current_time
+
+        except Exception as e:
+            print(f"{Fore.YELLOW}⚠️  Could not scan commands directory: {e}")
+
+    def get_command(self, command_name: str) -> Optional[str]:
+        """Get a command template by name."""
+        self._scan_commands()
+        return self.commands_cache.get(command_name)
+
+    def list_commands(self) -> List[str]:
+        """List all available custom commands."""
+        self._scan_commands()
+        return list(self.commands_cache.keys())
+
+    def process_command(self, command_name: str, arguments: str = "") -> str:
+        """Process a custom command by replacing $ARGUMENTS placeholder."""
+        template = self.get_command(command_name)
+        if not template:
+            return None
+
+        # Replace $ARGUMENTS placeholder with actual arguments
+        processed_template = template.replace("$ARGUMENTS", arguments)
+
+        # Create the command message format
+        command_message = f"""<command-message>Executing custom command: /{command_name}</command-message>
+<command-name>/{command_name}</command-name>
+<command-arguments>{arguments}</command-arguments>
+
+{processed_template}"""
+
+        return command_message
 
 
 # ================== Essential Coding Tools ==================
@@ -97,9 +253,9 @@ def read_file(file_path: str, offset: int = None, limit: int = None) -> str:
     ## Usage Guidelines
 
     - **File path must be absolute**, not relative
-    - By default, reads up to 2000 lines starting from the beginning
+    - By default, reads up to {Config.DEFAULT_READ_LIMIT} lines starting from the beginning
     - You can optionally specify line offset and limit for long files
-    - Lines longer than 2000 characters will be truncated
+    - Lines longer than {Config.DEFAULT_READ_LIMIT} characters will be truncated
     - Results returned using `cat -n` format, with line numbers starting at 1
 
     ## Supported File Types
@@ -128,13 +284,13 @@ def read_file(file_path: str, offset: int = None, limit: int = None) -> str:
 
         # Apply offset and limit if provided
         start = (offset - 1) if offset else 0
-        end = start + limit if limit else min(start + 2000, len(lines))
+        end = start + limit if limit else min(start + Config.DEFAULT_READ_LIMIT, len(lines))
 
         # Format with line numbers like cat -n
         result = []
         for i in range(start, min(end, len(lines))):
             line_num = i + 1
-            line = lines[i][:2000] if len(lines[i]) > 2000 else lines[i]
+            line = lines[i][:Config.DEFAULT_READ_LIMIT] if len(lines[i]) > Config.DEFAULT_READ_LIMIT else lines[i]
             result.append(f"{line_num:6d}\t{line.rstrip()}")
 
         return "\n".join(result)
@@ -182,6 +338,78 @@ def write_file(file_path: str, content: str) -> str:
         return f"Error writing file: {str(e)}"
 
 
+@tool("Edit")
+def edit_file(
+    file_path: str, old_string: str, new_string: str, replace_all: bool = False
+) -> str:
+    """Performs exact string replacements in files.
+
+    ## Usage Requirements
+
+    - **Must use Read tool first** - This tool will error if you attempt an edit without reading the file
+    - When editing text from Read tool output, preserve exact indentation (tabs/spaces) as it appears AFTER the line number prefix
+    - Line number prefix format: `spaces + line number + tab`. Everything after that tab is the actual file content to match
+    - **Never include any part of the line number prefix** in the old_string or new_string
+
+    ## Best Practices
+
+    - **ALWAYS prefer editing existing files** in the codebase. NEVER write new files unless explicitly required
+    - Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked
+    - The edit will FAIL if `old_string` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replace_all` to change every instance
+    - Use `replace_all` for replacing and renaming strings across the file. This parameter is useful for renaming variables
+
+        Args:
+            file_path: The absolute path to the file to modify
+            old_string: The text to replace
+            new_string: The text to replace it with (must be different from old_string)
+            replace_all: Replace all occurences of old_string (default false)
+        Returns:
+            Success message or error
+    """
+    try:
+        # Check if file exists
+        if not os.path.exists(file_path):
+            return f"Error: File not found: {file_path}"
+
+        # Check if old_string and new_string are the same
+        if old_string == new_string:
+            return "Error: old_string and new_string cannot be the same"
+
+        # Read the file
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Check if old_string exists in the file
+        if old_string not in content:
+            return f"Error: String not found in file: {repr(old_string)}"
+
+        # Check for uniqueness if not replace_all
+        if not replace_all and content.count(old_string) > 1:
+            return f"Error: String appears {content.count(old_string)} times in file. Use replace_all=True or provide more context to make it unique"
+
+        # Perform the replacement
+        if replace_all:
+            new_content = content.replace(old_string, new_string)
+            count = content.count(old_string)
+        else:
+            new_content = content.replace(old_string, new_string, 1)
+            count = 1
+
+        # Write the modified content back
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+
+        action = (
+            f"Replaced {count} occurrence(s)"
+            if replace_all or count > 1
+            else "Replaced"
+        )
+        return f"{action} in {file_path}"
+
+    except Exception as e:
+        return f"Error editing file: {str(e)}"
+
+
 @tool("Bash")
 def run_command(
     command: str,
@@ -207,9 +435,9 @@ def run_command(
     ## Usage Notes
 
     - The command argument is required
-    - Optional timeout in milliseconds (up to 600000ms / 10 minutes). Default: 120000ms (2 minutes)
+    - Optional timeout in milliseconds (up to 600000ms / 10 minutes). Default: {Config.BACKGROUND_SHELL_TIMEOUT_MS}ms (2 minutes)
     - Write a clear, concise description of what the command does in 5-10 words
-    - Output exceeding 30000 characters will be truncated
+    - Output exceeding {Config.MAX_OUTPUT_LENGTH} characters will be truncated
     - Use `run_in_background` parameter to run commands in the background
     - **IMPORTANT**: Avoid using search commands like `find` and `grep`. Use Grep, Glob, or Task tools instead
     - **IMPORTANT**: Avoid read tools like `cat`, `head`, `tail`, and `ls`. Use Read and LS tools instead
@@ -242,28 +470,32 @@ def run_command(
     try:
         timeout = min(timeout, 600)  # Cap at 10 minutes
         global _background_shells, _current_process, _cancellation_requested
-        
+
         # Reset cancellation flag
         _cancellation_requested = False
-        
+
         # Enhanced git operation guidance
         def provide_git_guidance(cmd: str) -> str:
             """Provide helpful guidance for git operations"""
             guidance = ""
             cmd_lower = cmd.lower().strip()
-            
-            if cmd_lower.startswith('git commit'):
-                if '-m' not in cmd_lower and not cmd_lower.endswith('--amend'):
+
+            if cmd_lower.startswith("git commit"):
+                if "-m" not in cmd_lower and not cmd_lower.endswith("--amend"):
                     guidance += "\n💡 Git Guidance: Consider running 'git status' and 'git diff --cached' first to review staged changes"
-            elif cmd_lower.startswith('git push'):
+            elif cmd_lower.startswith("git push"):
                 guidance += "\n💡 Git Guidance: Ensure all changes are committed and consider 'git log --oneline' to verify commits"
-            elif cmd_lower.startswith('git merge') or cmd_lower.startswith('git rebase'):
+            elif cmd_lower.startswith("git merge") or cmd_lower.startswith(
+                "git rebase"
+            ):
                 guidance += "\n💡 Git Guidance: Make sure working directory is clean with 'git status' before merge/rebase"
-            elif cmd_lower == 'git status':
+            elif cmd_lower == "git status":
                 guidance += "\n💡 Git Guidance: This shows staged/unstaged changes - consider 'git diff' for detailed changes"
-            elif cmd_lower.startswith('git add'):
-                guidance += "\n💡 Git Guidance: Review changes with 'git diff' before staging"
-                
+            elif cmd_lower.startswith("git add"):
+                guidance += (
+                    "\n💡 Git Guidance: Review changes with 'git diff' before staging"
+                )
+
             return guidance
 
         if run_in_background:
@@ -289,7 +521,7 @@ def run_command(
                 "started_at": time.time(),
                 "working_dir": working_dir,
                 "output_buffer": "",  # Store accumulated output
-                "last_position": 0,   # Track what we've already returned
+                "last_position": 0,  # Track what we've already returned
             }
 
             return f"Background shell started with ID: {shell_id}\nCommand: {command}\nUse BashOutput tool with bash_id='{shell_id}' to monitor output."
@@ -304,17 +536,17 @@ def run_command(
                 text=True,
                 cwd=working_dir,
             )
-            
+
             try:
                 # Wait for process with timeout, checking for cancellation
                 stdout, stderr = _current_process.communicate(timeout=timeout)
                 result_code = _current_process.returncode
                 _current_process = None
-                
+
                 # Check if cancelled
                 if _cancellation_requested:
                     return f"{Fore.YELLOW}⚠️  Command cancelled by user (Esc pressed)"
-                
+
             except subprocess.TimeoutExpired:
                 _current_process.terminate()
                 _current_process.wait()
@@ -330,13 +562,15 @@ def run_command(
                 output += f"\nReturn code: {result_code}"
 
             # Truncate if too long
-            if len(output) > 30000:
-                output = output[:30000] + "\n[Output truncated...]"
+            if len(output) > Config.MAX_OUTPUT_LENGTH:
+                output = output[:Config.MAX_OUTPUT_LENGTH] + "\n[Output truncated...]"
 
             # Add git guidance if applicable
             git_guidance = provide_git_guidance(command)
-            final_output = output if output else "Command executed successfully (no output)"
-            
+            final_output = (
+                output if output else "Command executed successfully (no output)"
+            )
+
             return final_output + git_guidance
 
     except subprocess.TimeoutExpired:
@@ -514,36 +748,36 @@ def grep_files(
     try:
         # Try to find ripgrep using standard methods
         import shutil
-        
+
         rg_cmd = shutil.which("rg")
-        
+
         if not rg_cmd:
             # Try common installation locations
             rg_paths = [
-                "/usr/local/bin/rg", 
+                "/usr/local/bin/rg",
                 "/opt/homebrew/bin/rg",
                 "/usr/bin/rg",
                 os.path.expanduser("~/.local/bin/rg"),
-                os.path.expanduser("~/.cargo/bin/rg")
+                os.path.expanduser("~/.cargo/bin/rg"),
             ]
-            
+
             for rg_path in rg_paths:
                 if os.path.isfile(rg_path) and os.access(rg_path, os.X_OK):
                     rg_cmd = rg_path
                     break
-        
+
         if not rg_cmd:
             return "Error: ripgrep (rg) not found. Please install ripgrep or ensure it's in PATH."
-            
+
         cmd = [rg_cmd]
-        
+
         # Add pattern
         cmd.append(pattern)
-        
+
         # Add path if specified
         if path:
             cmd.append(path)
-        
+
         # Add flags based on parameters
         if i:
             cmd.append("-i")
@@ -557,22 +791,22 @@ def grep_files(
             cmd.extend(["-B", str(B)])
         if C is not None and output_mode == "content":
             cmd.extend(["-C", str(C)])
-        
+
         # Set output mode
         if output_mode == "files_with_matches":
             cmd.append("-l")
         elif output_mode == "count":
             cmd.append("-c")
         # content mode is default, no flag needed
-        
+
         # Add file type filter
         if type:
             cmd.extend(["-t", type])
-        
+
         # Add glob filter
         if glob:
             cmd.extend(["-g", glob])
-        
+
         # Execute ripgrep
         result = subprocess.run(
             cmd,
@@ -580,24 +814,34 @@ def grep_files(
             text=True,
             timeout=30,
         )
-        
+
         # Handle ripgrep exit codes
         if result.returncode == 0:
-            output_lines = result.stdout.strip().split('\n') if result.stdout.strip() else []
+            output_lines = (
+                result.stdout.strip().split("\n") if result.stdout.strip() else []
+            )
         elif result.returncode == 1:
             # No matches found
             return f"No matches found for pattern: {pattern}"
         else:
             # Error occurred
-            error_msg = result.stderr.strip() if result.stderr.strip() else "Unknown ripgrep error"
+            error_msg = (
+                result.stderr.strip()
+                if result.stderr.strip()
+                else "Unknown ripgrep error"
+            )
             return f"Error in ripgrep search: {error_msg}"
-        
+
         # Apply head limit if specified
         if head_limit and output_lines:
             output_lines = output_lines[:head_limit]
-        
-        return '\n'.join(output_lines) if output_lines else f"No matches found for pattern: {pattern}"
-        
+
+        return (
+            "\n".join(output_lines)
+            if output_lines
+            else f"No matches found for pattern: {pattern}"
+        )
+
     except subprocess.TimeoutExpired:
         return "Ripgrep search timed out after 30 seconds"
     except FileNotFoundError:
@@ -715,7 +959,7 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
         # Check if process is still running
         if process.poll() is None:
             # Calculate runtime
-            runtime = time.time() - shell_info.get('started_at', 0)
+            runtime = time.time() - shell_info.get("started_at", 0)
             status = f"running for {runtime:.1f}s"
         else:
             status = f"completed (exit code: {process.returncode})"
@@ -740,49 +984,53 @@ def get_bash_output(bash_id: str, filter: str = None) -> str:
             try:
                 # Try to read new output without blocking
                 import select
-                
+
                 current_buffer = shell_info.get("output_buffer", "")
                 last_position = shell_info.get("last_position", 0)
-                
+
                 # Try non-blocking read if data is available
-                if hasattr(select, 'select') and process.stdout:
+                if hasattr(select, "select") and process.stdout:
                     ready, _, _ = select.select([process.stdout], [], [], 0.1)
                     if ready:
                         try:
                             # Read available data in chunks to avoid blocking
                             import fcntl
                             import os
-                            
+
                             fd = process.stdout.fileno()
                             fl = fcntl.fcntl(fd, fcntl.F_GETFL)
                             fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-                            
+
                             try:
                                 chunk = process.stdout.read(4096)
                                 if chunk:
-                                    current_buffer += chunk.decode('utf-8', errors='ignore')
+                                    current_buffer += chunk.decode(
+                                        "utf-8", errors="ignore"
+                                    )
                                     shell_info["output_buffer"] = current_buffer
                             except (BlockingIOError, OSError):
                                 pass  # No data available right now
                             finally:
-                                fcntl.fcntl(fd, fcntl.F_SETFL, fl)  # Restore blocking mode
-                                
+                                fcntl.fcntl(
+                                    fd, fcntl.F_SETFL, fl
+                                )  # Restore blocking mode
+
                         except (ImportError, AttributeError, OSError):
                             # Fallback for systems without fcntl
                             pass
-                
+
                 # Return only NEW output since last check
                 new_output = current_buffer[last_position:]
                 shell_info["last_position"] = len(current_buffer)
-                
+
                 # If no new output, provide status
                 if not new_output.strip():
-                    runtime = time.time() - shell_info.get('started_at', 0)
+                    runtime = time.time() - shell_info.get("started_at", 0)
                     new_output = f"[Running for {runtime:.1f}s, PID: {process.pid}] No new output yet..."
-                    
+
             except Exception as e:
                 # Fallback to basic status
-                runtime = time.time() - shell_info.get('started_at', 0)
+                runtime = time.time() - shell_info.get("started_at", 0)
                 new_output = f"Process running (PID: {process.pid}, {runtime:.1f}s). Error getting output: {str(e)}"
 
         # Apply filter if provided
@@ -982,11 +1230,17 @@ Remember: Be direct, efficient, and respect the user's existing codebase convent
 
 
 class CodingAgent:
-    def __init__(self, model_name: str = MODEL_NAME):
+    def __init__(self, model_name: str = Config.MODEL_NAME):
         """Initialize the coding agent with tools and caching."""
         # Setup keyboard interrupt handling
         setup_keyboard_interrupt()
-        
+
+        # Initialize custom command manager
+        self.command_manager = CustomCommandManager()
+
+        # Load memory context
+        self.memory_context = load_memory_context()
+
         # Setup LLM
         self.llm = ChatAnthropic(model=model_name, temperature=0.0, max_tokens=16384)
 
@@ -994,6 +1248,7 @@ class CodingAgent:
         self.tools = [
             read_file,
             write_file,
+            edit_file,
             run_command,
             list_files,
             glob_files,
@@ -1034,6 +1289,22 @@ class CodingAgent:
                 ]
             )
         ]
+
+        # Add memory context as the first user message if it exists
+        if (
+            self.memory_context and len(self.memory_context.strip()) > 100
+        ):  # Only if substantial content
+            self.messages.append(
+                HumanMessage(
+                    content=[
+                        {
+                            "type": "text",
+                            "text": self.memory_context,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ]
+                )
+            )
 
         self.working_dir = "."
 
@@ -1090,7 +1361,7 @@ class CodingAgent:
                 print(Fore.CYAN + "\n🔧 TOOL CALL DEBUG:")
                 print(Fore.WHITE + f"   📝 Name: {tool_name}")
                 print(Fore.WHITE + f"   ⚙️  Parameters: {tool_args}")
-                
+
                 # Show cancellation instruction for potentially long-running tools
                 if tool_name in ["run_command", "grep_files"]:
                     print(Fore.YELLOW + "   ⌨️  Press Ctrl+C to cancel if needed")
@@ -1147,9 +1418,20 @@ class CodingAgent:
         print(Fore.GREEN + f"📁 Working directory set to: {directory}")
 
     def reset(self):
-        """Reset conversation but keep cached system prompt."""
-        self.messages = [self.messages[0]]
-        print(Fore.YELLOW + "🔄 Conversation reset (keeping cached system prompt)")
+        """Reset conversation but keep cached system prompt and memory context."""
+        if len(self.messages) >= 2 and "<system-reminder>" in str(
+            self.messages[1].content
+        ):
+            # Keep system prompt and memory context
+            self.messages = [self.messages[0], self.messages[1]]
+            print(
+                Fore.YELLOW
+                + "🔄 Conversation reset (keeping cached system prompt and memory context)"
+            )
+        else:
+            # Only keep system prompt
+            self.messages = [self.messages[0]]
+            print(Fore.YELLOW + "🔄 Conversation reset (keeping cached system prompt)")
 
 
 # ================== Demo & Interactive Mode ==================
@@ -1195,6 +1477,8 @@ def interactive():
     print(Fore.WHITE + "  'cd <dir>' - Change working directory")
     print(Fore.WHITE + "  'pwd' - Show current working directory")
     print(Fore.WHITE + "  '/init' - Analyze codebase and create CLAUDE.md")
+    print(Fore.WHITE + "  '/commands' - List available custom commands")
+    print(Fore.WHITE + "  '/memory' - View current memory context")
     print(Fore.YELLOW + "\nYou can ask me to:")
     print(Fore.WHITE + "  - Read and analyze code")
     print(Fore.WHITE + "  - Write new files or modify existing ones")
@@ -1202,7 +1486,9 @@ def interactive():
     print(Fore.WHITE + "  - Debug issues")
     print(Fore.WHITE + "  - Refactor code")
     print(Fore.WHITE + "  - Set up new projects")
-    print(Fore.YELLOW + "\n💡 Tip: Press Ctrl+C to cancel any long-running tool execution")
+    print(
+        Fore.YELLOW + "\n💡 Tip: Press Ctrl+C to cancel any long-running tool execution"
+    )
     print(Fore.CYAN + "=" * 70 + "\n")
 
     agent = CodingAgent()
@@ -1269,6 +1555,62 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
             except Exception as e:
                 print(Fore.RED + f"❌ Error executing /init: {str(e)}")
             continue
+
+        # Handle /commands command
+        if user_input.strip() == "/commands":
+            print(Fore.CYAN + "\n📋 Available Custom Commands:")
+            print(Fore.CYAN + "=" * 40)
+            commands = agent.command_manager.list_commands()
+            if commands:
+                for cmd in sorted(commands):
+                    print(Fore.WHITE + f"  /{cmd}")
+                print(Fore.YELLOW + f"\nFound {len(commands)} custom commands")
+                print(Fore.YELLOW + "Usage: /<command_name> [arguments]")
+            else:
+                print(Fore.YELLOW + "No custom commands found in ~/.claude/commands/")
+            print(Fore.CYAN + "=" * 40)
+            continue
+
+        # Handle /memory command
+        if user_input.strip() == "/memory":
+            print(Fore.CYAN + "\n🧠 Current Memory Context:")
+            print(Fore.CYAN + "=" * 50)
+            if hasattr(agent, "memory_context") and agent.memory_context:
+                # Show first 1000 chars to avoid overwhelming output
+                context_preview = agent.memory_context[:1000]
+                if len(agent.memory_context) > 1000:
+                    context_preview += f"\n\n... (truncated, total length: {len(agent.memory_context)} chars)"
+                print(Fore.WHITE + context_preview)
+            else:
+                print(Fore.YELLOW + "No memory context loaded.")
+            print(Fore.CYAN + "=" * 50)
+            continue
+
+        # Handle custom commands
+        if user_input.strip().startswith("/"):
+            parts = user_input.strip()[1:].split(" ", 1)
+            command_name = parts[0]
+            arguments = parts[1] if len(parts) > 1 else ""
+
+            # Check if this is a custom command
+            if agent.command_manager.get_command(command_name):
+                print(Fore.CYAN + f"\n🔧 Executing custom command: /{command_name}")
+
+                # Process the command
+                processed_message = agent.command_manager.process_command(
+                    command_name, arguments
+                )
+
+                try:
+                    response = agent.chat(processed_message)
+                    print(Fore.GREEN + f"\n🤖 Agent: {response}")
+                except Exception as e:
+                    print(Fore.RED + f"❌ Error executing /{command_name}: {str(e)}")
+                continue
+            else:
+                print(Fore.RED + f"❌ Unknown command: /{command_name}")
+                print(Fore.YELLOW + "Use '/commands' to see available custom commands")
+                continue
 
         try:
             response = agent.chat(user_input)
