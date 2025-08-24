@@ -37,12 +37,8 @@ class CodingAgent:
         # Setup tools
         self.tools, self.tools_map, self.llm_with_tools = self._setup_tools()
 
-        # System prompt with tools description
-        tools_desc = "\n\nAvailable tools:\n"
-        for t in self.tools:
-            tools_desc += f"- {t.name}: {t.description}\n"
-
-        self.system_prompt_str = coding_agent_prompt() + tools_desc
+        # System prompt (tool descriptions are automatically provided by bind_tools)
+        self.system_prompt_str = coding_agent_prompt()
 
         # Initialize messages with cached system prompt
         self.messages: List = [

@@ -11,7 +11,7 @@ def create_general_purpose_agent():
     
     agent = CodingAgent()
     
-    # Override system prompt for general-purpose agent
+    # Override system prompt for general-purpose agent (tool descriptions provided by bind_tools)
     general_purpose_prompt = """You are an agent for Claude Code, Anthropic's official CLI for Claude. Given the user's message, you should use the tools available to complete the task. Do what has been asked; nothing more, nothing less. When you complete the task simply respond with a detailed writeup.
 
 Your strengths:
@@ -27,14 +27,7 @@ Guidelines:
 - NEVER create files unless they're absolutely necessary for achieving your goal. ALWAYS prefer editing an existing file to creating a new one.
 - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested.
 - In your final response always share relevant file names and code snippets. Any file paths you return in your response MUST be absolute. Do NOT use relative paths.
-- For clear communication, avoid using emojis.
-
-Available tools:
-"""
-    
-    # Add tools description
-    for t in agent.tools:
-        general_purpose_prompt += f"- {t.name}: {t.description}\n"
+- For clear communication, avoid using emojis."""
     
     # Update the system prompt
     agent.system_prompt_str = general_purpose_prompt
