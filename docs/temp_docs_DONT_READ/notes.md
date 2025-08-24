@@ -1,5 +1,8 @@
 # How to implement
-Implement in steps, so I can stop and "playaround" with the coding-agent, to make sure it's running - 
+Implement in steps, so I can stop and "playaround" with the coding-agent, to make sure it's running:
+- Step 1: hard-code "general-purpose" agent, and implement Task tool, stop, let me make sure it's running  - the main purpose of this agent is: "compress" context - run some long-context task in independent agent (own context), only give back the end-results
+- Step 2: hard-code "faang-engineer-architect" , make it available to Task tool
+- Step 
 
 # Don't read - not for AI 
 Claude Code CLI installed via npm:

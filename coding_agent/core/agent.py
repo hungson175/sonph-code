@@ -15,6 +15,7 @@ from ..utils.keyboard import setup_keyboard_interrupt
 from ..tools.file_tools import read_file, write_file, edit_file, list_files
 from ..tools.search_tools import glob_files, grep_files
 from ..tools.execution_tools import run_command, get_bash_output, todo_write
+from ..tools.task_tool import task
 
 
 class CodingAgent:
@@ -70,6 +71,7 @@ class CodingAgent:
             grep_files,
             get_bash_output,
             todo_write,
+            task,
         ]
         tools_map = {tool.name: tool for tool in tools}
 
