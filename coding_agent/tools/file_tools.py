@@ -7,16 +7,22 @@ from ..core.config import Config
 
 
 @tool("Read")
-def read_file(file_path: str, offset: int = None, limit: int = None) -> str:
+def read_file(file_path: str, line_number: int = None, limit: int = None, read_mode: str = "top_down") -> str:
     """Reads a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
     ## Usage Guidelines
 
     - **File path must be absolute**, not relative
     - By default, reads up to {Config.DEFAULT_READ_LIMIT} lines starting from the beginning
-    - You can optionally specify line offset and limit for long files
+    - You can optionally specify line_number, limit, and read_mode for better context
     - Lines longer than {Config.DEFAULT_READ_LIMIT} characters will be truncated
     - Results returned using `cat -n` format, with line numbers starting at 1
+
+    ## Read Modes
+
+    - **"top_down"** (default): Read N lines starting from line_number
+    - **"middle"**: Read N lines centered around line_number
+    - **"bottom_up"**: Read N lines ending at line_number
 
     ## Supported File Types
 
@@ -33,8 +39,9 @@ def read_file(file_path: str, offset: int = None, limit: int = None) -> str:
 
         Args:
             file_path: The absolute path to the file to read
-            offset: The line number to start reading from. Only provide if the file is too large to read at once
-            limit: The number of lines to read. Only provide if the file is too large to read at once.
+            line_number: The target line number for reading context
+            limit: The number of lines to read
+            read_mode: How to read around line_number ("top_down", "middle", "bottom_up")
         Returns:
             File contents in cat -n format with line numbers, or error message
     """
@@ -42,9 +49,30 @@ def read_file(file_path: str, offset: int = None, limit: int = None) -> str:
         with open(file_path, "r") as f:
             lines = f.readlines()
 
-        # Apply offset and limit if provided
-        start = (offset - 1) if offset else 0
-        end = start + limit if limit else min(start + Config.DEFAULT_READ_LIMIT, len(lines))
+        # Calculate reading range based on read_mode
+        total_lines = len(lines)
+        read_limit = limit if limit else Config.DEFAULT_READ_LIMIT
+        
+        if line_number is None:
+            # Default behavior: read from beginning
+            start = 0
+            end = min(read_limit, total_lines)
+        else:
+            line_idx = line_number - 1  # Convert to 0-based index
+            
+            if read_mode == "middle":
+                # Center around line_number
+                half_limit = read_limit // 2
+                start = max(0, line_idx - half_limit)
+                end = min(total_lines, start + read_limit)
+            elif read_mode == "bottom_up":
+                # Read N lines ending at line_number
+                end = min(total_lines, line_idx + 1)
+                start = max(0, end - read_limit)
+            else:  # "top_down" (default)
+                # Read N lines starting from line_number
+                start = max(0, line_idx)
+                end = min(total_lines, start + read_limit)
 
         # Format with line numbers like cat -n
         result = []
