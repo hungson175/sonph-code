@@ -110,3 +110,6 @@ The `docs/` directory contains extracted Claude Code system prompts and tool des
 ## Example Projects
 
 The `example_projects/` directory contains generated projects (caro game, expense trackers) that demonstrate the agent's capabilities. These are excluded from git via `.gitignore`.
+
+# HUMAN NOTES - note for human - AI don't read this
+- WOW , review all tools desc, it may be wrong (like Task tool !)

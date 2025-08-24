@@ -5,57 +5,43 @@ from typing import Dict, Any
 
 
 def create_general_purpose_agent():
-    """Create a general-purpose agent with specialized system prompt."""
+    """Create a specialized research agent."""
     # Import here to avoid circular import
-    from ..core.agent import CodingAgent
+    from ..core.general_purpose_agent import GeneralPurposeAgent
     
-    agent = CodingAgent()
-    
-    # Override system prompt for general-purpose agent (tool descriptions provided by bind_tools)
-    general_purpose_prompt = """You are an agent for Claude Code, Anthropic's official CLI for Claude. Given the user's message, you should use the tools available to complete the task. Do what has been asked; nothing more, nothing less. When you complete the task simply respond with a detailed writeup.
-
-Your strengths:
-- Searching for code, configurations, and patterns across large codebases
-- Analyzing multiple files to understand system architecture
-- Investigating complex questions that require exploring many files
-- Performing multi-step research tasks
-
-Guidelines:
-- For file searches: Use Grep or Glob when you need to search broadly. Use Read when you know the specific file path.
-- For analysis: Start broad and narrow down. Use multiple search strategies if the first doesn't yield results.
-- Be thorough: Check multiple locations, consider different naming conventions, look for related files.
-- NEVER create files unless they're absolutely necessary for achieving your goal. ALWAYS prefer editing an existing file to creating a new one.
-- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested.
-- In your final response always share relevant file names and code snippets. Any file paths you return in your response MUST be absolute. Do NOT use relative paths.
-- For clear communication, avoid using emojis."""
-    
-    # Update the system prompt
-    agent.system_prompt_str = general_purpose_prompt
-    agent.messages[0].content = agent._create_cached_message(general_purpose_prompt)
-    
-    return agent
+    return GeneralPurposeAgent()
 
 
 @tool("Task")
 def task(description: str, prompt: str, subagent_type: str) -> str:
-    """Launch a new agent to handle complex, multi-step tasks autonomously.
+    """Launch a new agent to handle complex, multi-step tasks autonomously. 
 
-    ## Available Agent Types
+Available agent types and the tools they have access to:
+- general-purpose: General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you. (Tools: *)
 
-    ### general-purpose
-    General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you. (Tools: *)
+When using the Task tool, you must specify a subagent_type parameter to select which agent type to use.
 
-    ## Usage Notes
 
-    1. Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously.
-    2. The agent's outputs should generally be trusted
-    3. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
-    4. The result returned by the agent is the complete output from the agent execution
+
+When NOT to use the Agent tool:
+- If you want to read a specific file path, use the Read or Glob tool instead of the Agent tool, to find the match more quickly
+- If you are searching for a specific class definition like "class Foo", use the Glob tool instead, to find the match more quickly
+- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Agent tool, to find the match more quickly
+- Other tasks that are not related to the agent descriptions above
+
+
+Usage notes:
+1. Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
+2. When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
+3. Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
+4. The agent's outputs should generally be trusted
+5. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
+6. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
 
     Args:
         description: A short (3-5 word) description of the task
         prompt: The task for the agent to perform
-        subagent_type: The type of specialized agent to use for this task (currently only "general-purpose" is supported)
+        subagent_type: The type of specialized agent to use for this task
     
     Returns:
         The agent's complete response after completing the task
