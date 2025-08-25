@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""
+Sonph-Code - Claude Code clone launcher script
+Usage: sonph-code [directory]
+
+This script launches the coding agent from any directory.
+The working directory will be set to the current directory or specified directory.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Get the directory where this script is located
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
+# Add the script directory to Python path so we can import the coding agent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+def main():
+    # Determine the working directory
+    if len(sys.argv) > 1:
+        # Directory specified as argument
+        target_dir = Path(sys.argv[1]).resolve()
+        if not target_dir.exists():
+            print(f"Error: Directory '{target_dir}' does not exist")
+            sys.exit(1)
+        if not target_dir.is_dir():
+            print(f"Error: '{target_dir}' is not a directory")
+            sys.exit(1)
+        working_dir = target_dir
+    else:
+        # Use current working directory
+        working_dir = Path.cwd()
+
+    print(f"🚀 Starting Sonph-Code in: {working_dir}")
+    
+    # Change to the working directory
+    os.chdir(working_dir)
+    
+    # Set environment to ensure the script directory is in path
+    os.environ['PYTHONPATH'] = str(SCRIPT_DIR)
+    
+    try:
+        # Import and run the main interactive function
+        from main import interactive
+        interactive()
+    except KeyboardInterrupt:
+        print("\n👋 Goodbye!")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

@@ -97,6 +97,11 @@ def interactive():
     print(Fore.CYAN + "=" * 70 + "\n")
 
     agent = CodingAgent()
+    
+    # Set working directory if provided via environment
+    initial_dir = os.getenv('INITIAL_DIR')
+    if initial_dir and os.path.isdir(initial_dir):
+        agent.set_working_dir(initial_dir)
 
     while True:
         user_input = input(Fore.RED + "\n💻 You: " + Style.RESET_ALL)
