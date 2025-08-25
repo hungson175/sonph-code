@@ -1,7 +1,6 @@
 """Main CodingAgent class."""
 
-from langchain_core.messages import HumanMessage, ToolMessage
-from colorama import Fore, Style
+from langchain_core.messages import HumanMessage
 
 from .base_agent import BaseAgent
 from .config import Config
@@ -21,17 +20,17 @@ class CodingAgent(BaseAgent):
         # Initialize command managers
         self.command_manager = CustomCommandManager()
         self.native_command_manager = NativeCommandManager()
-        
+
         # Load memory context
         self.memory_context = load_memory_context()
-        
+
         # Call parent with coding-specific configuration
         super().__init__(
             system_prompt=coding_agent_prompt(),
             tools=self._get_coding_tools(),
-            model_name=model_name
+            model_name=model_name,
         )
-        
+
         # Add memory context if exists
         if self.memory_context and len(self.memory_context.strip()) > 100:
             self.messages.append(
@@ -52,6 +51,3 @@ class CodingAgent(BaseAgent):
             todo_write,
             task,
         ]
-
-
-

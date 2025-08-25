@@ -11,37 +11,39 @@ from ..utils.keyboard import setup_keyboard_interrupt
 
 class BaseAgent:
     """Configurable agent base class."""
-    
-    def __init__(self, 
-                 system_prompt: str,
-                 tools: List[BaseTool] = None,
-                 model_name: str = Config.MODEL_NAME):
+
+    def __init__(
+        self,
+        system_prompt: str,
+        tools: List[BaseTool] = None,
+        model_name: str = Config.MODEL_NAME,
+    ):
         """Initialize agent with configurable system prompt and tools."""
         # Setup keyboard interrupt handling
         setup_keyboard_interrupt()
-        
+
         # Store configuration
         self.system_prompt_str = system_prompt
         self.working_dir = "."
-        
+
         # Setup LLM
         self.llm = ChatAnthropic(model=model_name, temperature=0.0, max_tokens=16384)
-        
+
         # Setup tools AFTER prompt is set
         self.tools = tools or self._get_default_tools()
         self.tools_map, self.llm_with_tools = self._setup_tools()
-        
+
         # Initialize with correct prompt from the start
         self.messages = [
             SystemMessage(content=self._create_cached_message(system_prompt))
         ]
-    
+
     def _get_default_tools(self) -> List[BaseTool]:
         """Get default tool set - override in subclasses."""
         from ..tools.file_tools import read_file, write_file, edit_file, list_files
         from ..tools.search_tools import glob_files, grep_files
         from ..tools.execution_tools import run_command, get_bash_output, todo_write
-        
+
         return [
             read_file,
             write_file,
@@ -53,7 +55,7 @@ class BaseAgent:
             get_bash_output,
             todo_write,
         ]
-    
+
     def _setup_tools(self):
         """Setup tools with caching and create tools map."""
         tools_map = {tool.name: tool for tool in self.tools}
@@ -68,36 +70,33 @@ class BaseAgent:
 
         # Bind tools to LLM
         llm_with_tools = self.llm.bind_tools(cached_tools)
-        
+
         return tools_map, llm_with_tools
 
     def _create_cached_message(self, content: str):
         """Create a message with cache control."""
         return [
-            {
-                "type": "text", 
-                "text": content,
-                "cache_control": {"type": "ephemeral"}
-            }
+            {"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}
         ]
 
     def _remove_cache_control(self, message):
         """Remove cache control from message for reuse."""
-        if hasattr(message, 'content') and isinstance(message.content, list):
+        if hasattr(message, "content") and isinstance(message.content, list):
             if len(message.content) > 0 and isinstance(message.content[0], dict):
                 message.content[0].pop("cache_control", None)
 
     def set_working_dir(self, directory: str):
         """Set the working directory for commands."""
         from colorama import Fore
+
         self.working_dir = directory
         print(Fore.GREEN + f"📁 Working directory set to: {directory}")
-    
+
     def chat(self, user_input: str) -> str:
         """Process user request."""
         from langchain_core.messages import HumanMessage, ToolMessage
         from colorama import Fore, Style
-        
+
         # Add user message with cache control
         self.messages.append(
             HumanMessage(content=self._create_cached_message(user_input))
@@ -172,7 +171,9 @@ class BaseAgent:
 
             # add cache_control
             last_message = self.messages[-1]
-            self.messages[-1].content = self._create_cached_message(last_message.content)
+            self.messages[-1].content = self._create_cached_message(
+                last_message.content
+            )
             response = self.llm_with_tools.invoke(self.messages)
             # remove cache_control mark for reuse later on
             self._remove_cache_control(self.messages[-1])
@@ -189,6 +190,7 @@ class BaseAgent:
     def reset(self):
         """Reset conversation but keep cached system prompt and memory context."""
         from colorama import Fore
+
         if len(self.messages) >= 2 and "<system-reminder>" in str(
             self.messages[1].content
         ):

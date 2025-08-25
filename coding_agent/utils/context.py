@@ -1,6 +1,5 @@
 """Context and memory management utilities."""
 
-import os
 from pathlib import Path
 
 
@@ -35,6 +34,7 @@ def load_memory_context() -> str:
             context_parts.append("")
         except Exception as e:
             from colorama import Fore
+
             print(f"{Fore.YELLOW}⚠️  Could not load global CLAUDE.md: {e}")
 
     # Load project instructions if they exist
@@ -50,6 +50,7 @@ def load_memory_context() -> str:
             context_parts.append("")
         except Exception as e:
             from colorama import Fore
+
             print(f"{Fore.YELLOW}⚠️  Could not load project CLAUDE.md: {e}")
 
     context_parts.append("      ")

@@ -3,7 +3,7 @@
 
 class InitCommand:
     """Built-in /init command for analyzing codebase and creating CLAUDE.md"""
-    
+
     @staticmethod
     def get_init_prompt() -> str:
         """Get the init command prompt."""
@@ -33,7 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     def process() -> str:
         """Process the /init command."""
         init_prompt = InitCommand.get_init_prompt()
-        
+
         return f"""<command-message>init is analyzing your codebase…</command-message>
 <command-name>/init</command-name>
 
@@ -42,23 +42,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 class NativeCommandManager:
     """Manages built-in native commands."""
-    
+
     def __init__(self):
-        self.native_commands = {
-            'init': InitCommand()
-        }
-    
+        self.native_commands = {"init": InitCommand()}
+
     def is_native_command(self, command_name: str) -> bool:
         """Check if a command is a native command."""
         return command_name in self.native_commands
-    
+
     def process_native_command(self, command_name: str, _arguments: str = "") -> str:
         """Process a native command."""
-        if command_name == 'init':
+        if command_name == "init":
             return InitCommand.process()
-        
+
         return f"Unknown native command: {command_name}"
-    
+
     def list_native_commands(self) -> list:
         """List all native commands."""
         return list(self.native_commands.keys())

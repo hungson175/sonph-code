@@ -141,3 +141,23 @@ assistant: "I'm going to use the Task tool to launch the with the greeting-respo
   "$schema": "http://json-schema.org/draft-07/schema#"
 }
 ```
+
+## Implementation Notes
+
+This tool has been updated to match the exact parameter descriptions from the original Claude Code JSON schema:
+
+- **description**: "A short (3-5 word) description of the task"
+- **prompt**: "The task for the agent to perform"
+- **subagent_type**: "The type of specialized agent to use for this task"
+
+### Current Implementation
+
+Currently only supports the `general-purpose` subagent type, which provides access to all available tools (*) for:
+- Researching complex questions
+- Searching for code
+- Executing multi-step tasks
+- File system operations
+
+### Usage Guidelines
+
+The comprehensive description includes detailed usage notes, examples, and behavioral guidance for when to use/not use the Task tool, ensuring optimal delegation of work to specialized agents.

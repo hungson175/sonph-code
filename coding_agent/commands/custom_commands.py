@@ -11,15 +11,15 @@ from ..core.config import Config
 
 class CustomCommand:
     """Represents a single custom command."""
-    
+
     def __init__(self, name: str, template: str):
         self.name = name
         self.template = template
-    
+
     def process(self, arguments: str = "") -> str:
         """Process command with arguments."""
         processed_template = self.template.replace("$ARGUMENTS", arguments)
-        
+
         return f"""<command-message>Executing custom command: /{self.name}</command-message>
 <command-name>/{self.name}</command-name>
 <command-arguments>{arguments}</command-arguments>
@@ -56,7 +56,9 @@ class CustomCommandManager:
                 try:
                     with open(command_file, "r", encoding="utf-8") as f:
                         content = f.read().strip()
-                    self.commands_cache[command_name] = CustomCommand(command_name, content)
+                    self.commands_cache[command_name] = CustomCommand(
+                        command_name, content
+                    )
                 except Exception as e:
                     print(f"{Fore.YELLOW}⚠️  Could not load command {command_name}: {e}")
 

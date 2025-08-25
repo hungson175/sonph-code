@@ -5,7 +5,6 @@ import os
 import subprocess
 from langchain_core.tools import tool
 
-from ..core.config import config
 
 
 @tool("Glob")

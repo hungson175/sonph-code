@@ -7,7 +7,7 @@ import subprocess
 import time
 import uuid
 from langchain_core.tools import tool
-from typing import List, TypedDict
+from typing import List, TypedDict, Annotated
 
 from colorama import Fore
 
@@ -17,64 +17,156 @@ from ..core.shell_manager import shell_manager
 
 @tool("Bash")
 def run_command(
-    command: str,
-    working_dir: str = ".",
-    timeout: int = 30,
-    run_in_background: bool = False,
+    command: Annotated[str, "The command to execute"],
+    timeout: Annotated[int, "Optional timeout in milliseconds (max 600000)"] = 120000,
+    description: Annotated[
+        str,
+        " Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'",
+    ] = "",
+    run_in_background: Annotated[
+        bool,
+        "Set to true to run this command in the background. Use BashOutput to read the output later.",
+    ] = False,
 ) -> str:
     """Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
 
-    ## Command Execution Guidelines
+    Before executing the command, please follow these steps:
 
-    ### Directory Verification
-    - If the command will create new directories or files, first use the LS tool to verify the parent directory exists and is the correct location
-    - For example, before running "mkdir foo/bar", first use LS to check that "foo" exists and is the intended parent directory
+    1. Directory Verification:
+       - If the command will create new directories or files, first use the LS tool to verify the parent directory exists and is the correct location
+       - For example, before running "mkdir foo/bar", first use LS to check that "foo" exists and is the intended parent directory
 
-    ### Proper Quoting
-    Always quote file paths that contain spaces with double quotes:
-    - ✅ `cd "/Users/name/My Documents"` (correct)
-    - ❌ `cd /Users/name/My Documents` (incorrect - will fail)
-    - ✅ `python "/path/with spaces/script.py"` (correct)
-    - ❌ `python /path/with spaces/script.py` (incorrect - will fail)
+    2. Command Execution:
+       - Always quote file paths that contain spaces with double quotes (e.g., cd "path with spaces/file.txt")
+       - Examples of proper quoting:
+         - cd "/Users/name/My Documents" (correct)
+         - cd /Users/name/My Documents (incorrect - will fail)
+         - python "/path/with spaces/script.py" (correct)
+         - python /path/with spaces/script.py (incorrect - will fail)
+       - After ensuring proper quoting, execute the command.
+       - Capture the output of the command.
 
-    ## Usage Notes
+    Usage notes:
+      - The command argument is required.
+      - You can specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). If not specified, commands will timeout after 120000ms (2 minutes).
+      - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
+      - If the output exceeds 30000 characters, output will be truncated before being returned to you.
+      - You can use the `run_in_background` parameter to run the command in the background, which allows you to continue working while the command runs. You can monitor the output using the Bash tool as it becomes available. Never use `run_in_background` to run 'sleep' as it will return immediately. You do not need to use '&' at the end of the command when using this parameter.
+      - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep`. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use Read and LS to read files.
+     - If you _still_ need to run `grep`, STOP. ALWAYS USE ripgrep at `rg` first, which all Claude Code users have pre-installed.
+      - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
+      - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
+        <good-example>
+        pytest /foo/bar/tests
+        </good-example>
+        <bad-example>
+        cd /foo/bar && pytest tests
+        </bad-example>
 
-    - The command argument is required
-    - Optional timeout in milliseconds (up to 600000ms / 10 minutes). Default: {Config.BACKGROUND_SHELL_TIMEOUT_MS}ms (2 minutes)
-    - Write a clear, concise description of what the command does in 5-10 words
-    - Output exceeding {Config.MAX_OUTPUT_LENGTH} characters will be truncated
-    - Use `run_in_background` parameter to run commands in the background
-    - **IMPORTANT**: Avoid using search commands like `find` and `grep`. Use Grep, Glob, or Task tools instead
-    - **IMPORTANT**: Avoid read tools like `cat`, `head`, `tail`, and `ls`. Use Read and LS tools instead
-    - If you need `grep`, use ripgrep (`rg`) which is pre-installed
-    - Use `;` or `&&` to separate multiple commands. Do NOT use newlines
-    - Maintain current working directory by using absolute paths and avoiding `cd`
 
-    ## Git Operations
+    # Committing changes with git
 
-    ### Committing Changes
-    When creating git commits:
-    1. Run git status, git diff, and git log commands in parallel
-    2. Analyze staged changes and draft commit message
-    3. Add untracked files and create commit with proper format
-    4. Verify commit succeeded with git status
+    When the user asks you to create a new git commit, follow these steps carefully:
 
-    ### Pull Requests
-    1. Run git status, git diff, and git log commands to understand branch state
-    2. Analyze all changes for pull request summary
-    3. Push to remote if needed and create PR using `gh pr create`
+    1. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following bash commands in parallel, each using the Bash tool:
+      - Run a git status command to see all untracked files.
+      - Run a git diff command to see both staged and unstaged changes that will be committed.
+      - Run a git log command to see recent commit messages, so that you can follow this repository's commit message style.
+    2. Analyze all staged changes (both previously staged and newly added) and draft a commit message:
+      - Summarize the nature of the changes (eg. new feature, enhancement to an existing feature, bug fix, refactoring, test, docs, etc.). Ensure the message accurately reflects the changes and their purpose (i.e. "add" means a wholly new feature, "update" means an enhancement to an existing feature, "fix" means a bug fix, etc.).
+      - Check for any sensitive information that shouldn't be committed
+      - Draft a concise (1-2 sentences) commit message that focuses on the "why" rather than the "what"
+      - Ensure it accurately reflects the changes and their purpose
+    3. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following commands in parallel:
+       - Add relevant untracked files to the staging area.
+       - Create the commit with a message ending with:
+       🤖 Generated with [Claude Code](https://claude.ai/code)
 
-        Args:
-            command: The command to execute
-            working_dir: Working directory for the command (default: current)
-            timeout: Timeout in seconds (default: 30, max: 600)
-            run_in_background: Set to true to run this command in the background. Use BashOutput to read the output later.
-        Returns:
-            Command output (stdout + stderr) or error message, or background shell ID if run_in_background=True
+       Co-Authored-By: Claude <noreply@anthropic.com>
+       - Run git status to make sure the commit succeeded.
+    4. If the commit fails due to pre-commit hook changes, retry the commit ONCE to include these automated changes. If it fails again, it usually means a pre-commit hook is preventing the commit. If the commit succeeds but you notice that files were modified by the pre-commit hook, you MUST amend your commit to include them.
+
+    Important notes:
+    - NEVER update the git config
+    - NEVER run additional commands to read or explore code, besides git bash commands
+    - NEVER use the TodoWrite or Task tools
+    - DO NOT push to the remote repository unless the user explicitly asks you to do so
+    - IMPORTANT: Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.
+    - If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit
+    - In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC, a la this example:
+    <example>
+    git commit -m "$(cat <<'EOF'
+       Commit message here.
+
+       🤖 Generated with [Claude Code](https://claude.ai/code)
+
+       Co-Authored-By: Claude <noreply@anthropic.com>
+       EOF
+       )"
+    </example>
+
+    # Creating pull requests
+    Use the gh command via the Bash tool for ALL GitHub-related tasks including working with issues, pull requests, checks, and releases. If given a Github URL use the gh command to get the information needed.
+
+    IMPORTANT: When the user asks you to create a pull request, follow these steps carefully:
+
+    1. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following bash commands in parallel using the Bash tool, in order to understand the current state of the branch since it diverged from the main branch:
+       - Run a git status command to see all untracked files
+       - Run a git diff command to see both staged and unstaged changes that will be committed
+       - Check if the current branch tracks a remote branch and is up to date with the remote, so you know if you need to push to the remote
+       - Run a git log command and `git diff [base-branch]...HEAD` to understand the full commit history for the current branch (from the time it diverged from the base branch)
+    2. Analyze all changes that will be included in the pull request, making sure to look at all relevant commits (NOT just the latest commit, but ALL commits that will be included in the pull request!!!), and draft a pull request summary
+    3. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following commands in parallel:
+       - Create new branch if needed
+       - Push to remote with -u flag if needed
+       - Create PR using gh pr create with the format below. Use a HEREDOC to pass the body to ensure correct formatting.
+    <example>
+    gh pr create --title "the pr title" --body "$(cat <<'EOF'
+    ## Summary
+    <1-3 bullet points>
+
+    ## Test plan
+    [Checklist of TODOs for testing the pull request...]
+
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    EOF
+    )"
+    </example>
+
+    Important:
+    - NEVER update the git config
+    - DO NOT use the TodoWrite or Task tools
+    - Return the PR URL when you're done, so the user can see it
+
+    # Other common operations
+    - View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments
+
+
+    Args:
+        command (str): The command to execute
+        timeout (int, optional): Optional timeout in milliseconds (max 600000)
+        description (str, optional): Clear, concise description of what this command does in 5-10 words. Examples:
+    Input: ls
+    Output: Lists files in current directory
+
+    Input: git status
+    Output: Shows working tree status
+
+    Input: npm install
+    Output: Installs package dependencies
+
+    Input: mkdir foo
+    Output: Creates directory 'foo'
+        run_in_background (bool, optional): Set to true to run this command in the background. Use BashOutput to read the output later.
+
+    Returns:
+        str: Command output and status
     """
     try:
-        timeout = min(timeout, 600)  # Cap at 10 minutes
-        
+        timeout_seconds = min(
+            timeout / 1000, 600
+        )  # Convert ms to seconds, cap at 10 minutes
+
         # Reset cancellation flag
         shell_manager.reset_cancellation()
 
@@ -110,7 +202,6 @@ def run_command(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                cwd=working_dir,
                 bufsize=1,
                 universal_newlines=True,
             )
@@ -123,7 +214,6 @@ def run_command(
                 "process": process,
                 "command": command,
                 "started_at": time.time(),
-                "working_dir": working_dir,
                 "output_buffer": "",  # Store accumulated output
                 "last_position": 0,  # Track what we've already returned
             }
@@ -139,12 +229,13 @@ def run_command(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                cwd=working_dir,
             )
 
             try:
                 # Wait for process with timeout, checking for cancellation
-                stdout, stderr = shell_manager.current_process.communicate(timeout=timeout)
+                stdout, stderr = shell_manager.current_process.communicate(
+                    timeout=timeout_seconds
+                )
                 result_code = shell_manager.current_process.returncode
                 shell_manager.current_process = None
 
@@ -156,7 +247,7 @@ def run_command(
                 shell_manager.current_process.terminate()
                 shell_manager.current_process.wait()
                 shell_manager.current_process = None
-                return f"Command timed out after {timeout} seconds"
+                return f"Command timed out after {timeout_seconds} seconds"
 
             output = ""
             if stdout:
@@ -168,7 +259,7 @@ def run_command(
 
             # Truncate if too long
             if len(output) > Config.MAX_OUTPUT_LENGTH:
-                output = output[:Config.MAX_OUTPUT_LENGTH] + "\n[Output truncated...]"
+                output = output[: Config.MAX_OUTPUT_LENGTH] + "\n[Output truncated...]"
 
             # Add git guidance if applicable
             git_guidance = provide_git_guidance(command)
@@ -179,7 +270,7 @@ def run_command(
             return final_output + git_guidance
 
     except subprocess.TimeoutExpired:
-        return f"Command timed out after {timeout} seconds"
+        return f"Command timed out after {timeout_seconds} seconds"
     except Exception as e:
         return f"Error executing command: {str(e)}"
 

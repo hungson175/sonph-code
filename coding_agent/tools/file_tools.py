@@ -7,7 +7,12 @@ from ..core.config import Config
 
 
 @tool("Read")
-def read_file(file_path: str, line_number: int = None, limit: int = None, read_mode: str = "top_down") -> str:
+def read_file(
+    file_path: str,
+    line_number: int = None,
+    limit: int = None,
+    read_mode: str = "top_down",
+) -> str:
     """Reads a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
     ## Usage Guidelines
@@ -52,14 +57,14 @@ def read_file(file_path: str, line_number: int = None, limit: int = None, read_m
         # Calculate reading range based on read_mode
         total_lines = len(lines)
         read_limit = limit if limit else Config.DEFAULT_READ_LIMIT
-        
+
         if line_number is None:
             # Default behavior: read from beginning
             start = 0
             end = min(read_limit, total_lines)
         else:
             line_idx = line_number - 1  # Convert to 0-based index
-            
+
             if read_mode == "middle":
                 # Center around line_number
                 half_limit = read_limit // 2
@@ -78,7 +83,11 @@ def read_file(file_path: str, line_number: int = None, limit: int = None, read_m
         result = []
         for i in range(start, min(end, len(lines))):
             line_num = i + 1
-            line = lines[i][:Config.DEFAULT_READ_LIMIT] if len(lines[i]) > Config.DEFAULT_READ_LIMIT else lines[i]
+            line = (
+                lines[i][: Config.DEFAULT_READ_LIMIT]
+                if len(lines[i]) > Config.DEFAULT_READ_LIMIT
+                else lines[i]
+            )
             result.append(f"{line_num:6d}\t{line.rstrip()}")
 
         return "\n".join(result)

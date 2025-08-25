@@ -9,6 +9,39 @@ from coding_agent.core.agent import CodingAgent
 init(autoreset=True)
 
 
+# Initialize the customized agents system at startup
+def initialize_agents_system():
+    """Initialize the agents system with dynamic Task tool description."""
+    try:
+        from coding_agent.tools.task_tool import initialize_task_tool_description
+        from coding_agent.core.agent_registry import AgentRegistry
+
+        # Initialize agent registry (discovers available agents)
+        registry = AgentRegistry()
+        agent_count = registry.get_agent_count()
+
+        print(
+            Fore.CYAN
+            + f"🔧 Initializing agents system... Found {agent_count['total']} agents ({agent_count['built_in']} built-in, {agent_count['user_defined']} user-defined)"
+        )
+
+        # Initialize Task tool description based on available agents
+        description = initialize_task_tool_description()
+
+        print(
+            Fore.GREEN
+            + f"✅ Task tool initialized with dynamic description ({len(description)} characters)"
+        )
+
+    except Exception as e:
+        print(Fore.YELLOW + f"⚠️  Warning: Failed to initialize agents system: {e}")
+        print(Fore.YELLOW + "🔄 Falling back to basic Task tool functionality")
+
+
+# Initialize the agents system
+initialize_agents_system()
+
+
 def demo():
     """Demo the coding agent."""
     print(Fore.CYAN + "\n" + "=" * 70)
@@ -97,9 +130,13 @@ def interactive():
             # Check if this is a native command first
             if agent.native_command_manager.is_native_command(command_name):
                 print(Fore.CYAN + f"\n🔧 Executing native command: /{command_name}")
-                
+
                 try:
-                    processed_message = agent.native_command_manager.process_native_command(command_name, arguments)
+                    processed_message = (
+                        agent.native_command_manager.process_native_command(
+                            command_name, arguments
+                        )
+                    )
                     response = agent.chat(processed_message)
                     print(Fore.GREEN + f"\n🤖 Agent: {response}")
                 except Exception as e:
@@ -110,27 +147,31 @@ def interactive():
             elif command_name == "commands":
                 print(Fore.CYAN + "\n📋 Available Commands:")
                 print(Fore.CYAN + "=" * 40)
-                
+
                 # Show native commands
                 native_commands = agent.native_command_manager.list_native_commands()
                 if native_commands:
                     print(Fore.YELLOW + "Native Commands:")
                     for cmd in sorted(native_commands):
                         print(Fore.WHITE + f"  /{cmd}")
-                
+
                 # Show custom commands
                 custom_commands = agent.command_manager.list_commands()
                 if custom_commands:
                     print(Fore.YELLOW + "Custom Commands:")
                     for cmd in sorted(custom_commands):
                         print(Fore.WHITE + f"  /{cmd}")
-                    print(Fore.YELLOW + f"\nFound {len(custom_commands)} custom commands")
+                    print(
+                        Fore.YELLOW + f"\nFound {len(custom_commands)} custom commands"
+                    )
                     print(Fore.YELLOW + "Usage: /<command_name> [arguments]")
                 else:
-                    print(Fore.YELLOW + "No custom commands found in ~/.claude/commands/")
+                    print(
+                        Fore.YELLOW + "No custom commands found in ~/.claude/commands/"
+                    )
                 print(Fore.CYAN + "=" * 40)
                 continue
-                
+
             elif command_name == "memory":
                 print(Fore.CYAN + "\n🧠 Current Memory Context:")
                 print(Fore.CYAN + "=" * 50)

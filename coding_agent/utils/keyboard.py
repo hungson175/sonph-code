@@ -34,7 +34,9 @@ def start_keyboard_monitor():
                 tty.setraw(sys.stdin.fileno())
 
                 while not shell_manager.cancellation_requested:
-                    if select.select([sys.stdin], [], [], Config.KEYBOARD_POLL_INTERVAL)[0]:
+                    if select.select(
+                        [sys.stdin], [], [], Config.KEYBOARD_POLL_INTERVAL
+                    )[0]:
                         key = sys.stdin.read(1)
                         if ord(key) == Config.ESC_KEY_CODE:  # Esc key
                             if shell_manager.current_process:
