@@ -21,7 +21,7 @@ def initialize_agents_system():
         agent_count = registry.get_agent_count()
 
         print(
-            Fore.CYAN
+            Fore.CYAN + Style.DIM
             + f"🔧 Initializing agents system... Found {agent_count['total']} agents ({agent_count['built_in']} built-in, {agent_count['user_defined']} user-defined)"
         )
 
@@ -29,7 +29,7 @@ def initialize_agents_system():
         description = initialize_task_tool_description()
 
         print(
-            Fore.GREEN
+            Fore.GREEN + Style.DIM
             + f"✅ Task tool initialized with dynamic description ({len(description)} characters)"
         )
 
@@ -73,30 +73,36 @@ def demo():
 
 def interactive():
     """Interactive coding session."""
-    print(Fore.CYAN + "\n" + "=" * 70)
-    print(Fore.GREEN + "🤖 Coding Agent - Interactive Mode")
-    print(Fore.CYAN + "=" * 70)
-    print(Fore.YELLOW + "\nCommands:")
-    print(Fore.WHITE + "  'quit' - Exit")
-    print(Fore.WHITE + "  'reset' - Clear conversation history")
-    print(Fore.WHITE + "  'cd <dir>' - Change working directory")
-    print(Fore.WHITE + "  'pwd' - Show current working directory")
-    print(Fore.WHITE + "  '/init' - Analyze codebase and create CLAUDE.md")
-    print(Fore.WHITE + "  '/commands' - List available custom commands")
-    print(Fore.WHITE + "  '/memory' - View current memory context")
-    print(Fore.YELLOW + "\nYou can ask me to:")
-    print(Fore.WHITE + "  - Read and analyze code")
-    print(Fore.WHITE + "  - Write new files or modify existing ones")
-    print(Fore.WHITE + "  - Run commands and scripts")
-    print(Fore.WHITE + "  - Debug issues")
-    print(Fore.WHITE + "  - Refactor code")
-    print(Fore.WHITE + "  - Set up new projects")
-    print(
-        Fore.YELLOW + "\n💡 Tip: Press Ctrl+C to cancel any long-running tool execution"
-    )
-    print(Fore.CYAN + "=" * 70 + "\n")
+    from coding_agent.utils.banner import show_startup_screen
+    from coding_agent.core.agent_registry import AgentRegistry
+    
+    # Get agent information for startup screen
+    try:
+        registry = AgentRegistry()
+        agent_count = registry.get_agent_count()
+    except:
+        agent_count = None
+    
+    # Get working directory
+    current_dir = os.getcwd()
+    
+    # Show beautiful startup screen
+    show_startup_screen(agent_count=agent_count, working_dir=current_dir)
 
     agent = CodingAgent()
+    
+    # Show quick command reference
+    print(Fore.YELLOW + Style.BRIGHT + "Quick Commands:")
+    print(Fore.CYAN + "  quit/exit" + Fore.WHITE + " - Exit the program")
+    print(Fore.CYAN + "  reset" + Fore.WHITE + " - Clear conversation history")  
+    print(Fore.CYAN + "  cd <dir>" + Fore.WHITE + " - Change working directory")
+    print(Fore.CYAN + "  /init" + Fore.WHITE + " - Analyze codebase and create CLAUDE.md")
+    print(Fore.CYAN + "  /commands" + Fore.WHITE + " - List all available commands")
+    print(Fore.CYAN + "  /memory" + Fore.WHITE + " - View current memory context")
+    print()
+    print(Fore.YELLOW + "💡 Press Ctrl+C to cancel any long-running operation")
+    print(Fore.BLACK + Style.BRIGHT + "─" * 80)
+    print()
     
     # Set working directory if provided via environment
     initial_dir = os.getenv('INITIAL_DIR')
