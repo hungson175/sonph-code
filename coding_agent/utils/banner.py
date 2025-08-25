@@ -50,13 +50,13 @@ def show_startup_screen(agent_count=None, working_dir=None):
     # Create a gradient background effect
     print()
     
-    # Show the main banner with gradient colors
+    # Show the main banner with gradient colors - BONPH CODE
     banner_lines = [
-        "██████   ██████  ███    ██ ██████  ██   ██       ██████  ██████  ██████  ███████",
-        "██   ██ ██    ██ ████   ██ ██   ██ ██   ██      ██      ██    ██ ██   ██ ██     ",
-        "██████  ██    ██ ██ ██  ██ ██████  ███████      ██      ██    ██ ██   ██ █████  ", 
-        "██   ██ ██    ██ ██  ██ ██ ██      ██   ██      ██      ██    ██ ██   ██ ██     ",
-        "██████   ██████  ██   ████ ██      ██   ██       ██████  ██████  ██████  ███████"
+        "████   ███  █   █ ████  █   █       ███   ███  ████  █████",
+        "█   █ █   █ ██  █ █   █ █   █      █     █   █ █   █ █    ",
+        "████  █   █ █ █ █ ████  █████      █     █   █ █   █ ████ ", 
+        "█   █ █   █ █  ██ █     █   █      █     █   █ █   █ █    ",
+        "████   ███  █   █ █     █   █       ███   ███  ████  █████"
     ]
     
     colors = [Fore.CYAN, Fore.BLUE, Fore.MAGENTA, Fore.RED, Fore.YELLOW]
@@ -91,17 +91,17 @@ def show_startup_screen(agent_count=None, working_dir=None):
     print()
     
     # Show example prompts in a more compact format
-    print(Fore.CYAN + Style.BRIGHT + "> " + Fore.WHITE + "Write a short paragraph about why Sonph CLI is awesome")
+    print(Fore.CYAN + Style.BRIGHT + "> " + Fore.WHITE + "Write a short paragraph about why Bonph CLI is awesome")
     print()
-    print(Fore.WHITE + Style.DIM + "• I will start by searching the web for \"Sonph CLI\" to understand its main features and purpose. Following")
+    print(Fore.WHITE + Style.DIM + "• I will start by searching the web for \"Bonph CLI\" to understand its main features and purpose. Following")
     print(Fore.WHITE + Style.DIM + "  that, I'll then search for file utils in project overview. I will then consult docs/overview.md")
     print(Fore.WHITE + Style.DIM + "  and docs/CLI/Commands.md to gain a deeper understanding of its capabilities. Finally, I will write a short")
-    print(Fore.WHITE + Style.DIM + "  paragraph summarizing why Sonph CLI is awesome.")
+    print(Fore.WHITE + Style.DIM + "  paragraph summarizing why Bonph CLI is awesome.")
     
     print()
-    print(Fore.BLUE + Style.BRIGHT + "WebSearch " + Fore.WHITE + Style.DIM + 'Searching the web for: "Sonph CLI features and purpose"')
+    print(Fore.BLUE + Style.BRIGHT + "WebSearch " + Fore.WHITE + Style.DIM + 'Searching the web for: "Bonph CLI features and purpose"')
     print()
 
 def show_compact_banner():
     """Show a compact version for when space is limited."""
-    print(Fore.CYAN + Style.BRIGHT + "🚀 " + Fore.WHITE + "SONPH-CODE" + Fore.CYAN + " - Claude Code Clone")
+    print(Fore.CYAN + Style.BRIGHT + "🚀 " + Fore.WHITE + "BONPH-CODE" + Fore.CYAN + " - Claude Code Clone")
