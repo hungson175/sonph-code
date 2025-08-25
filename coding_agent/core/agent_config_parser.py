@@ -3,6 +3,7 @@
 import yaml
 from pathlib import Path
 from typing import Dict
+from .config import Config
 
 
 class AgentConfigParser:
@@ -17,7 +18,7 @@ class AgentConfigParser:
         name: agent-name
         description: When to use this agent...
         tools: Tool1, Tool2, Tool3  (optional, defaults to *)
-        model: sonnet (optional)
+        model: claude-sonnet-4-20250514 (optional)
         color: blue (optional)
         ---
 
@@ -73,7 +74,7 @@ class AgentConfigParser:
         else:
             config["tools"] = tools_str or ["*"]
 
-        config["model"] = frontmatter.get("model", "sonnet")
+        config["model"] = frontmatter.get("model", Config.MODEL_NAME)
         config["color"] = frontmatter.get("color", None)
 
         # Add metadata

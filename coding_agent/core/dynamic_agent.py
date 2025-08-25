@@ -6,6 +6,7 @@ from typing import List, Dict, Set
 from langchain_core.tools import BaseTool
 
 from .base_agent import BaseAgent
+from .config import Config
 
 
 class DynamicAgent(BaseAgent):
@@ -15,7 +16,7 @@ class DynamicAgent(BaseAgent):
         self,
         system_prompt: str,
         tools: List[BaseTool] = None,
-        model_name: str = "sonnet",
+        model_name: str = Config.MODEL_NAME,
     ):
         """Initialize dynamic agent with BaseAgent functionality."""
         super().__init__(system_prompt, tools, model_name)
@@ -28,7 +29,7 @@ class DynamicAgent(BaseAgent):
         return cls(
             system_prompt=config.get("systemPrompt", ""),
             tools=tools,
-            model_name=config.get("model", "sonnet"),
+            model_name=config.get("model", Config.MODEL_NAME),
         )
 
     @staticmethod
@@ -71,21 +72,20 @@ class DynamicAgent(BaseAgent):
         from ..tools.file_tools import read_file, write_file, edit_file, list_files
         from ..tools.search_tools import glob_files, grep_files
         from ..tools.execution_tools import run_command, get_bash_output, todo_write
-        from ..tools.task_tool import task_tool
+        from ..tools.task_tool import task
 
         # Map tool names to actual tool objects
         available_tool_objects = {
             "Read": read_file,
             "Write": write_file,
             "Edit": edit_file,
-            "MultiEdit": edit_file,  # assuming MultiEdit uses the same tool
             "LS": list_files,
             "Glob": glob_files,
             "Grep": grep_files,
             "Bash": run_command,
             "BashOutput": get_bash_output,
             "TodoWrite": todo_write,
-            "Task": task_tool,
+            "Task": task,
         }
 
         # If '*' is specified, return all available tools
