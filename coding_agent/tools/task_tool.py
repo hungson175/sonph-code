@@ -1,6 +1,6 @@
 """Task tool for delegating work to specialized agents."""
 
-from langchain_core.tools import tool
+from langchain_core.tools import StructuredTool
 from typing import Annotated
 
 
@@ -12,16 +12,12 @@ def create_general_purpose_agent():
     return GeneralPurposeAgent()
 
 
-@tool("Task")
-def task(
-    description: Annotated[str, "A short (3-5 word) description of the task"],
-    prompt: Annotated[str, "The task for the agent to perform"],
-    subagent_type: Annotated[str, "The type of specialized agent to use for this task"],
+def _task_implementation(
+    description: str,
+    prompt: str, 
+    subagent_type: str
 ) -> str:
-    """Task tool with dynamic agent loading from registry.
-
-    The actual description is set dynamically at application startup.
-    """
+    """Implementation function for the task tool."""
     from ..core.agent_registry import AgentRegistry
 
     # Get the agent registry
@@ -43,18 +39,27 @@ def task(
         return f"Error executing task '{description}' with {subagent_type} agent: {str(e)}\nAvailable agents: {available_agents}"
 
 
+# Create the tool with a placeholder description that will be updated
+task = StructuredTool.from_function(
+    func=_task_implementation,
+    name="Task",
+    description="Task tool with dynamic agent loading from registry. The actual description is set dynamically at application startup.",
+    args_schema=None,  # Will infer from function signature
+)
+
+
 def initialize_task_tool_description():
     """Initialize the Task tool description at startup.
-
+    
     This should be called once during application startup to set the
     static description for the Task tool based on available agents.
     """
     from ..core.task_tool_generator import get_static_task_description
-
+    
     # Get the static description generated from available agents
     static_description = get_static_task_description()
-
-    # Set the tool's docstring to the generated description
-    task.__doc__ = static_description
-
+    
+    # Update the tool's description directly
+    task.description = static_description
+    
     return static_description
