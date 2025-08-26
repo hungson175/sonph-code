@@ -4,6 +4,8 @@ from .file_tools import read_file, write_file, edit_file, list_files
 from .search_tools import glob_files, grep_files
 from .execution_tools import run_command, get_bash_output, todo_write
 from .task_tool import task
+from .web_search_tool import web_search
+from .web_fetch_tool import web_fetch
 
 __all__ = [
     "read_file",
@@ -16,4 +18,6 @@ __all__ = [
     "get_bash_output",
     "todo_write",
     "task",
+    "web_search",
+    "web_fetch",
 ]
