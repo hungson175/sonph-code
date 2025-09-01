@@ -1,5 +1,6 @@
 """Main CodingAgent class."""
 
+from typing import Optional
 from langchain_core.messages import HumanMessage
 
 from .base_agent import BaseAgent
@@ -15,7 +16,7 @@ from ..tools.task_tool import task
 
 
 class CodingAgent(BaseAgent):
-    def __init__(self, model_name: str = Config.MODEL_NAME):
+    def __init__(self, model_name: str = Config.MODEL_NAME, provider_name: Optional[str] = None):
         """Initialize the coding agent with tools and caching."""
         # Initialize command managers
         self.command_manager = CustomCommandManager()
@@ -29,6 +30,7 @@ class CodingAgent(BaseAgent):
             system_prompt=coding_agent_prompt(),
             tools=self._get_coding_tools(),
             model_name=model_name,
+            provider_name=provider_name,
         )
 
         # Add memory context if exists

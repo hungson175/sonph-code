@@ -8,30 +8,64 @@
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Handle help flag
-if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-    echo "🤖 Sonph-Code - Claude Code Clone"
-    echo ""
-    echo "Usage:"
-    echo "  sonph-code           # Run in current directory"
-    echo "  sonph-code /path     # Run in specified directory"
-    echo "  sonph-code --help    # Show this help"
-    echo ""
-    echo "The tool will start with the working directory set to the specified"
-    echo "directory (or current directory if none specified)."
-    exit 0
-fi
+# Initialize variables
+WORKING_DIR=""
+LLM_PROVIDER=""
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --help|-h)
+            echo "🤖 Sonph-Code - Claude Code Clone"
+            echo ""
+            echo "Usage:"
+            echo "  sonph-code                    # Run in current directory"
+            echo "  sonph-code /path              # Run in specified directory"
+            echo "  sonph-code --llm <provider>   # Specify LLM provider"
+            echo "  sonph-code --help             # Show this help"
+            echo ""
+            echo "LLM Providers:"
+            echo "  claude, sonnet    # Use Claude/Anthropic"
+            echo "  deepseek, ds      # Use DeepSeek"
+            echo ""
+            echo "Examples:"
+            echo "  sonph-code --llm claude"
+            echo "  sonph-code /path/to/project --llm deepseek"
+            echo ""
+            echo "The tool will start with the working directory set to the specified"
+            echo "directory (or current directory if none specified)."
+            exit 0
+            ;;
+        --llm)
+            LLM_PROVIDER="$2"
+            shift 2
+            ;;
+        -*)
+            echo "Error: Unknown option $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+        *)
+            if [ -z "$WORKING_DIR" ]; then
+                WORKING_DIR="$1"
+            else
+                echo "Error: Multiple directory arguments provided"
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
 
 # Determine the working directory
-if [ $# -gt 0 ]; then
+if [ -n "$WORKING_DIR" ]; then
     # Directory specified as argument
-    TARGET_DIR="$1"
-    if [ ! -d "$TARGET_DIR" ]; then
-        echo "Error: Directory '$TARGET_DIR' does not exist"
+    if [ ! -d "$WORKING_DIR" ]; then
+        echo "Error: Directory '$WORKING_DIR' does not exist"
         exit 1
     fi
     # Convert to absolute path
-    WORKING_DIR="$(cd "$TARGET_DIR" && pwd)"
+    WORKING_DIR="$(cd "$WORKING_DIR" && pwd)"
 else
     # Use current working directory
     WORKING_DIR="$(pwd)"
@@ -42,8 +76,12 @@ echo "🚀 Starting Sonph-Code in: $WORKING_DIR"
 # Change to the script directory to run with uv
 cd "$SCRIPT_DIR"
 
-# Set the initial directory environment variable
+# Set environment variables
 export INITIAL_DIR="$WORKING_DIR"
+if [ -n "$LLM_PROVIDER" ]; then
+    export SONPH_LLM_PROVIDER="$LLM_PROVIDER"
+    echo "🤖 Using LLM provider: $LLM_PROVIDER"
+fi
 
 # Run the main script using uv to ensure proper environment
 uv run python main.py

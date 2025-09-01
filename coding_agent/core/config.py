@@ -9,6 +9,7 @@ class Config:
 
     # Model and API settings
     MODEL_NAME = "deepseek-chat"  # Default DeepSeek model
+    DEFAULT_PROVIDER = "deepseek"  # Default provider
 
     # Timing settings
     CACHE_DURATION_SECONDS = 60

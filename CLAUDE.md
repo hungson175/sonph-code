@@ -15,12 +15,33 @@ uv sync
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your ANTHROPIC_API_KEY and optional LANGSMITH_* keys
+# Edit .env with your API keys:
+# - ANTHROPIC_API_KEY for Claude/Anthropic (required for Claude provider)
+# - DEEPSEEK_API_KEY for DeepSeek (required for DeepSeek provider)
+# - Optional LANGSMITH_* keys for tracing
 ```
 
 ### Running the Agent
+
+#### Using the Global Launcher (Recommended)
 ```bash
-# Primary way to run (recommended)
+# Run in current directory with default provider (DeepSeek)
+sonph-code
+
+# Specify LLM provider
+sonph-code --llm claude     # Use Claude/Anthropic
+sonph-code --llm deepseek   # Use DeepSeek (default)
+
+# Run in specific directory with provider
+sonph-code /path/to/project --llm claude
+
+# Show help
+sonph-code --help
+```
+
+#### Direct Python Execution
+```bash
+# Primary way to run
 uv run python main.py
 
 # Alternative with activated venv
@@ -83,8 +104,9 @@ The project now uses a modular architecture:
 
 ## Environment Variables
 
-Required:
-- `ANTHROPIC_API_KEY`: Get from https://console.anthropic.com/
+Required (choose based on LLM provider):
+- `ANTHROPIC_API_KEY`: Get from https://console.anthropic.com/ (for Claude provider)
+- `DEEPSEEK_API_KEY`: Get from https://platform.deepseek.com/ (for DeepSeek provider)
 
 Optional (for tracing):
 - `LANGSMITH_TRACING=true`
@@ -101,7 +123,44 @@ Within the agent CLI:
 - `/init`: Analyze codebase and create/update CLAUDE.md (native command)
 - `/commands`: List all available native and custom commands
 - `/memory`: View current memory context
+- `/model`: Switch LLM provider or show current model info
 - `Ctrl+C` or `Esc`: Cancel long-running tool execution
+
+### LLM Provider Management
+
+The agent supports multiple LLM providers that can be switched dynamically:
+
+#### Available Providers
+- **Claude/Anthropic** (aliases: `claude`, `sonnet`)
+  - Requires `ANTHROPIC_API_KEY`
+  - Default model: `claude-sonnet-4-20250514`
+  - Features: Manual cache control, optimized token usage reporting
+- **DeepSeek** (aliases: `deepseek`, `ds`)
+  - Requires `DEEPSEEK_API_KEY`
+  - Default model: `deepseek-chat`
+  - Features: Auto-cache management, cost-effective inference
+
+#### Using the `/model` Command
+```bash
+# Show current model and available providers
+/model
+
+# Switch to Claude
+/model claude
+
+# Switch to DeepSeek
+/model deepseek
+
+# Switch with specific model name
+/model sonnet claude-sonnet-4-20250514
+```
+
+#### Command-line Provider Selection
+```bash
+# Start with specific provider
+sonph-code --llm claude
+sonph-code --llm deepseek
+```
 
 ## Reverse Engineering Documentation
 

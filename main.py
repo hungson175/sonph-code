@@ -89,7 +89,9 @@ def interactive():
     # Show beautiful startup screen
     show_startup_screen(agent_count=agent_count, working_dir=current_dir)
 
-    agent = CodingAgent()
+    # Check for LLM provider from command line
+    llm_provider = os.getenv('SONPH_LLM_PROVIDER')
+    agent = CodingAgent(provider_name=llm_provider)
     
     # Show quick command reference
     print(Fore.YELLOW + Style.BRIGHT + "Quick Commands:")
@@ -99,6 +101,7 @@ def interactive():
     print(Fore.CYAN + "  /init" + Fore.WHITE + " - Analyze codebase and create CLAUDE.md")
     print(Fore.CYAN + "  /commands" + Fore.WHITE + " - List all available commands")
     print(Fore.CYAN + "  /memory" + Fore.WHITE + " - View current memory context")
+    print(Fore.CYAN + "  /model" + Fore.WHITE + " - Switch LLM provider (claude/deepseek)")
     print()
     print(Fore.YELLOW + "💡 Press Ctrl+C to cancel any long-running operation")
     print(Fore.BLACK + Style.BRIGHT + "─" * 80)
@@ -195,6 +198,35 @@ def interactive():
                 else:
                     print(Fore.YELLOW + "No memory context loaded.")
                 print(Fore.CYAN + "=" * 50)
+                continue
+
+            elif command_name == "model":
+                from coding_agent.core.llm_providers import LLMProviderFactory
+                
+                if not arguments:
+                    # Show current model and available providers
+                    print(Fore.CYAN + "\n🤖 Current Model:")
+                    print(Fore.GREEN + f"   {agent.get_current_provider_info()}")
+                    print(Fore.CYAN + "\n📋 Available Providers:")
+                    providers = LLMProviderFactory.get_available_providers()
+                    for provider in providers:
+                        print(Fore.WHITE + f"   {provider}")
+                    print(Fore.CYAN + "\nUsage: /model <provider> [model_name]")
+                    print(Fore.YELLOW + "Examples:")
+                    print(Fore.WHITE + "   /model claude")
+                    print(Fore.WHITE + "   /model deepseek")
+                    print(Fore.WHITE + "   /model sonnet claude-sonnet-4-20250514")
+                    continue
+                
+                # Parse arguments
+                parts = arguments.split()
+                provider_name = parts[0]
+                model_name = parts[1] if len(parts) > 1 else None
+                
+                # Switch provider
+                print(Fore.CYAN + f"\n🔄 Switching to {provider_name}...")
+                if agent.switch_provider(provider_name, model_name):
+                    print(Fore.GREEN + f"✅ Now using: {agent.get_current_provider_info()}")
                 continue
 
             # Check if this is a custom command

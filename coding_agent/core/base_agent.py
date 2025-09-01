@@ -1,11 +1,11 @@
 """Base agent class for configurable agents."""
 
-from typing import List
-from langchain_openai import ChatOpenAI
+from typing import List, Optional
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import BaseTool
 
 from .config import Config
+from .llm_providers import LLMProviderFactory, LLMProvider
 from ..utils.keyboard import setup_keyboard_interrupt
 
 
@@ -17,6 +17,7 @@ class BaseAgent:
         system_prompt: str,
         tools: List[BaseTool] = None,
         model_name: str = Config.MODEL_NAME,
+        provider_name: Optional[str] = None,
     ):
         """Initialize agent with configurable system prompt and tools."""
         # Setup keyboard interrupt handling
@@ -26,27 +27,18 @@ class BaseAgent:
         self.system_prompt_str = system_prompt
         self.working_dir = "."
 
-        # Setup LLM - Using DeepSeek
-        import os
-
-        deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
-        if not deepseek_api_key:
-            raise ValueError("DEEPSEEK_API_KEY environment variable is required")
-
-        self.llm = ChatOpenAI(
-            api_key=deepseek_api_key,
-            base_url="https://api.deepseek.com",
-            model=model_name if model_name != Config.MODEL_NAME else "deepseek-chat",
-            temperature=0.0,
-            max_tokens=16384,
-        )
-
-        # Setup tools AFTER prompt is set
+        # Setup LLM provider
+        if provider_name is None:
+            provider_name = Config.DEFAULT_PROVIDER
+        
+        self.provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name)
+        
+        # Setup tools AFTER provider is set
         self.tools = tools or self._get_default_tools()
         self.tools_map, self.llm_with_tools = self._setup_tools()
 
         # Initialize with correct prompt from the start
-        self.messages = [SystemMessage(content=system_prompt)]
+        self.messages = [SystemMessage(content=self.provider.create_cached_message(system_prompt))]
 
     def _get_default_tools(self) -> List[BaseTool]:
         """Get default tool set - override in subclasses."""
@@ -70,18 +62,18 @@ class BaseAgent:
         """Setup tools and create tools map."""
         tools_map = {tool.name: tool for tool in self.tools}
 
-        # Bind tools to LLM - DeepSeek uses standard OpenAI tool binding
-        llm_with_tools = self.llm.bind_tools(self.tools)
+        # Bind tools to LLM through provider
+        llm_with_tools = self.provider.bind_tools(self.tools)
 
         return tools_map, llm_with_tools
 
     def _create_cached_message(self, content: str):
-        """Create a message (DeepSeek doesn't use cache control)."""
-        return content
+        """Create a message using provider's caching strategy."""
+        return self.provider.create_cached_message(content)
 
     def _remove_cache_control(self, message):
-        """No-op for DeepSeek (doesn't use cache control)."""
-        pass
+        """Remove cache control using provider's strategy."""
+        self.provider.remove_cache_control(message)
 
     def set_working_dir(self, directory: str):
         """Set the working directory for commands."""
@@ -89,6 +81,40 @@ class BaseAgent:
 
         self.working_dir = directory
         print(Fore.GREEN + f"📁 Working directory set to: {directory}")
+
+    def switch_provider(self, provider_name: str, model_name: Optional[str] = None):
+        """Switch to a different LLM provider."""
+        from colorama import Fore
+        
+        try:
+            # Use current model if none specified
+            if model_name is None:
+                model_name = self.provider.model_name
+            
+            # Create new provider
+            new_provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name)
+            
+            # Update provider and rebuild tools
+            old_provider = self.provider.provider_name
+            self.provider = new_provider
+            self.tools_map, self.llm_with_tools = self._setup_tools()
+            
+            # Re-create system message with new provider's caching
+            if self.messages:
+                system_content = self.system_prompt_str
+                self.messages[0] = SystemMessage(content=self.provider.create_cached_message(system_content))
+            
+            print(Fore.GREEN + f"🔄 Switched from {old_provider} to {self.provider.provider_name} ({model_name})")
+            
+        except Exception as e:
+            print(Fore.RED + f"❌ Failed to switch provider: {str(e)}")
+            return False
+        
+        return True
+
+    def get_current_provider_info(self) -> str:
+        """Get current provider information."""
+        return f"{self.provider.provider_name} ({self.provider.model_name})"
 
     def chat(self, user_input: str) -> str:
         """Process user request."""
@@ -105,14 +131,11 @@ class BaseAgent:
         print(Fore.GREEN + "🤖 Initial response: " + Style.RESET_ALL, response)
 
         print(Fore.YELLOW + "=" * 20)
-        # DeepSeek token usage tracking (if available)
+        # Provider-specific token usage tracking
         if hasattr(response, "response_metadata"):
-            usage = response.response_metadata.get("usage", {})
-            if usage:
-                print(
-                    Fore.BLUE + f"📊 Tokens - Input: {usage.get('prompt_tokens', 0)} "
-                    f"Output: {usage.get('completion_tokens', 0)}"
-                )
+            usage_info = self.provider.format_usage_info(response.response_metadata)
+            if usage_info:
+                print(Fore.BLUE + usage_info)
         print(Fore.YELLOW + "=" * 20)
 
         # Remove cache_control from user message
@@ -167,18 +190,14 @@ class BaseAgent:
                     )
                 )
 
-            # Get next response from DeepSeek
+            # Get next response from LLM
             response = self.llm_with_tools.invoke(self.messages)
 
             self.messages.append(response)
             if hasattr(response, "response_metadata"):
-                usage = response.response_metadata.get("usage", {})
-                if usage:
-                    print(
-                        Fore.BLUE
-                        + f"📊 After tools - Input: {usage.get('prompt_tokens', 0)} "
-                        f"Output: {usage.get('completion_tokens', 0)}"
-                    )
+                usage_info = self.provider.format_usage_info(response.response_metadata)
+                if usage_info:
+                    print(Fore.BLUE + f"📊 After tools - {usage_info}")
 
         return response.content
 
