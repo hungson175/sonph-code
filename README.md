@@ -17,13 +17,23 @@ A Python-based coding agent that replicates Claude Code functionality using Lang
 2. **Set up API key:**
    ```bash
    cp .env.example .env
-   # Add your ANTHROPIC_API_KEY from https://console.anthropic.com/
+   # Add your DEEPSEEK_API_KEY from https://platform.deepseek.com/
    ```
 
 3. **Run the agent:**
    ```bash
+   # Method 1: Using uv (recommended)
    uv run python main.py
+   
+   # Method 2: Using the run script
+   ./run.sh
+   
+   # Method 3: Activate venv first
+   source .venv/bin/activate
+   python main.py
    ```
+   
+   **Important:** Do NOT run `python main.py` directly without uv or activating the virtual environment, as dependencies won't be available.
 
 ## Example Prompts
 
