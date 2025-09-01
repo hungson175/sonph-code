@@ -1,7 +1,7 @@
 """Main CodingAgent class."""
 
 from typing import Optional
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from .base_agent import BaseAgent
 from .config import Config
@@ -32,12 +32,22 @@ class CodingAgent(BaseAgent):
             model_name=model_name,
             provider_name=provider_name,
         )
+        
+        # Update system prompt with correct working directory after BaseAgent sets it
+        self._update_system_prompt_with_working_dir()
 
         # Add memory context if exists
         if self.memory_context and len(self.memory_context.strip()) > 100:
             self.messages.append(
                 HumanMessage(content=self._create_cached_message(self.memory_context))
             )
+
+    def _update_system_prompt_with_working_dir(self):
+        """Update system prompt with correct working directory."""
+        # Recreate system message with correct working directory
+        updated_prompt = coding_agent_prompt(working_dir=self.working_dir)
+        cached_content = self.provider.create_cached_message(updated_prompt)
+        self.messages[0] = SystemMessage(content=cached_content)
 
     def _get_coding_tools(self):
         """Get tools specific to coding agent (includes Task tool)."""

@@ -60,8 +60,9 @@ def switch_agent_provider(current_agent: CodingAgent, provider_name: str, model_
                     # Keep other messages as-is (ToolMessage, AIMessage, etc.)
                     new_agent.messages.append(msg)
         
-        # Preserve working directory
+        # Preserve working directory and update system prompt
         new_agent.working_dir = current_agent.working_dir
+        new_agent._update_system_prompt_with_working_dir()
         
         return new_agent
         

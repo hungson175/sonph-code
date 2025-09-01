@@ -5,10 +5,11 @@ import platform
 from datetime import datetime
 
 
-def coding_agent_prompt():
+def coding_agent_prompt(working_dir: str = None):
     """Generate the main system prompt for the coding agent."""
     today = datetime.now().strftime("%Y-%m-%d")
     os_info = f"{platform.system()} {platform.release()}"
+    current_working_dir = working_dir if working_dir else os.getcwd()
 
     return f"""
 You are an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
@@ -183,36 +184,7 @@ Usage notes:
 
 Here is useful information about the environment you are running in:
 <env>
-Working directory: /Users/sonph36/dev/trading-projects/new_trading_platform
-Is directory a git repo: Yes
-Platform: darwin
-OS Version: Darwin 24.0.0
-Today's date: 2025-08-23
-</env>
-You are powered by the model named Sonnet 3.5. The exact model ID is claude-3-5-sonnet-20241022.
-
-Assistant knowledge cutoff is January 2025.
-
-
-IMPORTANT: Assist with defensive security tasks only. Refuse to create, modify, or improve code that may be used maliciously. Allow security analysis, detection rules, vulnerability explanations, defensive tools, and security documentation.
-
-
-IMPORTANT: Always use the TodoWrite tool to plan and track tasks throughout the conversation.
-
-# Code References
-
-When referencing specific functions or pieces of code include the pattern `file_path:line_number` to allow the user to easily navigate to the source code location.
-
-<example>
-user: Where are errors from the client handled?
-assistant: Clients are marked as failed in the `connectToServer` function in src/services/process.ts:712.
-</example>
-
-
-
-Here is useful information about the environment you are running in:
-<env>
-Working directory: {os.getcwd()}
+Working directory: {current_working_dir}
 Is directory a git repo: Yes
 Platform: {os_info}
 OS Version: {platform.system()} {platform.release()}
