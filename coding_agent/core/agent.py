@@ -12,8 +12,6 @@ from ..tools.file_tools import read_file, write_file, edit_file, list_files
 from ..tools.search_tools import glob_files, grep_files
 from ..tools.execution_tools import run_command, get_bash_output, todo_write
 from ..tools.task_tool import task
-from ..tools.web_search_tool import web_search
-from ..tools.web_fetch_tool import web_fetch
 
 
 class CodingAgent(BaseAgent):
@@ -40,7 +38,7 @@ class CodingAgent(BaseAgent):
             )
 
     def _get_coding_tools(self):
-        """Get tools specific to coding agent (includes Task and Web Search tools)."""
+        """Get tools specific to coding agent (includes Task tool)."""
         return [
             read_file,
             write_file,
@@ -52,6 +50,4 @@ class CodingAgent(BaseAgent):
             get_bash_output,
             todo_write,
             task,
-            web_search,
-            web_fetch,
         ]

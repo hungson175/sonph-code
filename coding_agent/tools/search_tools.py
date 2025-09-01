@@ -6,7 +6,6 @@ import subprocess
 from langchain_core.tools import tool
 
 
-
 @tool("Glob")
 def glob_files(pattern: str, path: str = None) -> str:
     """Fast file pattern matching tool that works with any codebase size.

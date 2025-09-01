@@ -1,7 +1,6 @@
 """Task tool for delegating work to specialized agents."""
 
 from langchain_core.tools import StructuredTool
-from typing import Annotated
 
 
 def create_general_purpose_agent():
@@ -12,11 +11,7 @@ def create_general_purpose_agent():
     return GeneralPurposeAgent()
 
 
-def _task_implementation(
-    description: str,
-    prompt: str, 
-    subagent_type: str
-) -> str:
+def _task_implementation(description: str, prompt: str, subagent_type: str) -> str:
     """Implementation function for the task tool."""
     from ..core.agent_registry import AgentRegistry
 
@@ -50,16 +45,16 @@ task = StructuredTool.from_function(
 
 def initialize_task_tool_description():
     """Initialize the Task tool description at startup.
-    
+
     This should be called once during application startup to set the
     static description for the Task tool based on available agents.
     """
     from ..core.task_tool_generator import get_static_task_description
-    
+
     # Get the static description generated from available agents
     static_description = get_static_task_description()
-    
+
     # Update the tool's description directly
     task.description = static_description
-    
+
     return static_description
