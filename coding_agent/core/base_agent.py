@@ -82,35 +82,6 @@ class BaseAgent:
         self.working_dir = directory
         print(Fore.GREEN + f"📁 Working directory set to: {directory}")
 
-    def switch_provider(self, provider_name: str, model_name: Optional[str] = None):
-        """Switch to a different LLM provider."""
-        from colorama import Fore
-        
-        try:
-            # Use current model if none specified
-            if model_name is None:
-                model_name = self.provider.model_name
-            
-            # Create new provider
-            new_provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name)
-            
-            # Update provider and rebuild tools
-            old_provider = self.provider.provider_name
-            self.provider = new_provider
-            self.tools_map, self.llm_with_tools = self._setup_tools()
-            
-            # Re-create system message with new provider's caching
-            if self.messages:
-                system_content = self.system_prompt_str
-                self.messages[0] = SystemMessage(content=self.provider.create_cached_message(system_content))
-            
-            print(Fore.GREEN + f"🔄 Switched from {old_provider} to {self.provider.provider_name} ({model_name})")
-            
-        except Exception as e:
-            print(Fore.RED + f"❌ Failed to switch provider: {str(e)}")
-            return False
-        
-        return True
 
     def get_current_provider_info(self) -> str:
         """Get current provider information."""

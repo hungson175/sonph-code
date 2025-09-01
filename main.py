@@ -1,12 +1,73 @@
 """Main entry point and interactive interface for the coding agent."""
 
 import os
+from typing import Optional
 from colorama import Fore, Style, init
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from coding_agent.core.agent import CodingAgent
 
 # Initialize colorama
 init(autoreset=True)
+
+
+def switch_agent_provider(current_agent: CodingAgent, provider_name: str, model_name: Optional[str] = None) -> Optional[CodingAgent]:
+    """Switch agent provider while preserving conversation history."""
+    try:
+        from coding_agent.core.llm_providers import LLMProviderFactory
+        
+        # Extract conversation history (excluding system messages and memory context)
+        conversation_history = []
+        
+        # Skip system message(s) and memory context - find first actual user interaction
+        start_idx = None
+        for i, msg in enumerate(current_agent.messages):
+            if isinstance(msg, HumanMessage) and not ("<system-reminder>" in str(msg.content) or len(str(msg.content)) > 1000):
+                start_idx = i
+                break
+        
+        # Extract meaningful conversation
+        if start_idx is not None:
+            conversation_history = current_agent.messages[start_idx:]
+        
+        # Determine model name - use provider defaults if not specified
+        if not model_name:
+            provider_defaults = {
+                'claude': 'claude-sonnet-4-20250514',
+                'sonnet': 'claude-sonnet-4-20250514', 
+                'deepseek': 'deepseek-chat',
+                'ds': 'deepseek-chat'
+            }
+            model_name = provider_defaults.get(provider_name.lower(), 'deepseek-chat')
+        
+        # Create new agent with new provider
+        new_agent = CodingAgent(model_name=model_name, provider_name=provider_name)
+        
+        # Restore conversation history with new provider's caching
+        if conversation_history:
+            print(Fore.YELLOW + f"🔄 Restoring {len(conversation_history)} messages...")
+            
+            for msg in conversation_history:
+                if isinstance(msg, HumanMessage):
+                    # Re-cache user messages with new provider
+                    content = msg.content
+                    if isinstance(content, list):
+                        # Extract text from complex content
+                        content = str(content)
+                    cached_content = new_agent.provider.create_cached_message(content)
+                    new_agent.messages.append(HumanMessage(content=cached_content))
+                else:
+                    # Keep other messages as-is (ToolMessage, AIMessage, etc.)
+                    new_agent.messages.append(msg)
+        
+        # Preserve working directory
+        new_agent.working_dir = current_agent.working_dir
+        
+        return new_agent
+        
+    except Exception as e:
+        print(Fore.RED + f"❌ Failed to switch provider: {str(e)}")
+        return None
 
 
 # Initialize the customized agents system at startup
@@ -223,10 +284,13 @@ def interactive():
                 provider_name = parts[0]
                 model_name = parts[1] if len(parts) > 1 else None
                 
-                # Switch provider
+                # Switch provider with history preservation
                 print(Fore.CYAN + f"\n🔄 Switching to {provider_name}...")
-                if agent.switch_provider(provider_name, model_name):
+                new_agent = switch_agent_provider(agent, provider_name, model_name)
+                if new_agent:
+                    agent = new_agent
                     print(Fore.GREEN + f"✅ Now using: {agent.get_current_provider_info()}")
+                    print(Fore.GREEN + f"📚 Conversation history preserved")
                 continue
 
             # Check if this is a custom command
