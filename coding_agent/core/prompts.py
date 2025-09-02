@@ -9,7 +9,7 @@ def coding_agent_prompt(working_dir: str = None):
     """Generate the main system prompt for the coding agent."""
     today = datetime.now().strftime("%Y-%m-%d")
     os_info = f"{platform.system()} {platform.release()}"
-    current_working_dir = working_dir if working_dir else os.getcwd()
+    current_working_dir = os.path.abspath(working_dir if working_dir else os.getcwd())
 
     return f"""
 You are an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.

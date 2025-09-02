@@ -121,48 +121,54 @@ class BaseAgent:
                 Fore.MAGENTA + f"\n🔧 Executing {len(response.tool_calls)} tool(s)..."
             )
 
-            for tool_call in response.tool_calls:
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
+            try:
+                for tool_call in response.tool_calls:
+                    tool_name = tool_call["name"]
+                    tool_args = tool_call["args"]
 
-                # Special handling for run_command to use working_dir
-                if tool_name == "run_command" and "working_dir" not in tool_args:
-                    tool_args["working_dir"] = self.working_dir
+                    # Special handling for run_command to use working_dir
+                    if tool_name == "run_command" and "working_dir" not in tool_args:
+                        tool_args["working_dir"] = self.working_dir
 
-                print(Fore.CYAN + "\n🔧 TOOL CALL DEBUG:")
-                print(Fore.WHITE + f"   📝 Name: {tool_name}")
-                print(Fore.WHITE + f"   ⚙️  Parameters: {tool_args}")
+                    print(Fore.CYAN + "\n🔧 TOOL CALL DEBUG:")
+                    print(Fore.WHITE + f"   📝 Name: {tool_name}")
+                    print(Fore.WHITE + f"   ⚙️  Parameters: {tool_args}")
 
-                # Show cancellation instruction for potentially long-running tools
-                if tool_name in ["run_command", "grep_files"]:
-                    print(Fore.YELLOW + "   ⌨️  Press Ctrl+C to cancel if needed")
+                    # Show cancellation instruction for potentially long-running tools
+                    if tool_name in ["run_command", "grep_files"]:
+                        print(Fore.YELLOW + "   ⌨️  Press Ctrl+C to cancel if needed")
 
-                # Execute tool
-                if tool_name in self.tools_map:
-                    tool_result = self.tools_map[tool_name].invoke(tool_args)
-                else:
-                    tool_result = f"Unknown tool: {tool_name}"
+                    # Execute tool
+                    if tool_name in self.tools_map:
+                        tool_result = self.tools_map[tool_name].invoke(tool_args)
+                    else:
+                        tool_result = f"Unknown tool: {tool_name}"
 
-                print(
-                    Fore.GREEN
-                    + f"   ✅ Result (first 500 chars): {str(tool_result)[:500]}..."
-                )
-                print(
-                    Fore.BLUE
-                    + f"   📏 Result length: {len(str(tool_result))} characters"
-                )
-                print(Fore.CYAN + "=" * 50)
-
-                # Add tool result
-                self.messages.append(
-                    ToolMessage(
-                        content=str(tool_result)[:5000],  # Limit size
-                        tool_call_id=tool_call["id"],
+                    print(
+                        Fore.GREEN
+                        + f"   ✅ Result (first 500 chars): {str(tool_result)[:500]}..."
                     )
-                )
+                    print(
+                        Fore.BLUE
+                        + f"   📏 Result length: {len(str(tool_result))} characters"
+                    )
+                    print(Fore.CYAN + "=" * 50)
 
-            # Get next response from LLM
-            response = self.llm_with_tools.invoke(self.messages)
+                    # Add tool result
+                    self.messages.append(
+                        ToolMessage(
+                            content=str(tool_result)[:Config.MAX_OUTPUT_LENGTH],  # Limit size
+                            tool_call_id=tool_call["id"],
+                        )
+                    )
+
+                # Get next response from LLM
+                response = self.llm_with_tools.invoke(self.messages)
+                
+            except KeyboardInterrupt:
+                print(Fore.YELLOW + f"\n⚠️  Tool execution interrupted by user (Ctrl+C)")
+                print(Fore.GREEN + "🔄 Returning to main prompt...")
+                return "Tool execution was cancelled by user."
 
             self.messages.append(response)
             if hasattr(response, "response_metadata"):

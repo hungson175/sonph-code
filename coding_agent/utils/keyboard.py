@@ -14,7 +14,8 @@ def setup_keyboard_interrupt():
 
     def signal_handler(*_):
         shell_manager.request_cancellation()
-        print(f"\n{Fore.YELLOW}⚠️  Process cancelled by user (Esc pressed)")
+        print(f"\n{Fore.YELLOW}⚠️  Process cancelled by user (Ctrl+C pressed)")
+        raise KeyboardInterrupt("User pressed Ctrl+C")
 
     signal.signal(signal.SIGINT, signal_handler)
 

@@ -172,3 +172,7 @@ The `example_projects/` directory contains generated projects (caro game, expens
 
 # HUMAN NOTES - note for human - AI don't read this
 - WOW , review all tools desc, it may be wrong (like Task tool !)
+
+# Communication Guidelines for AI
+- Do NOT use phony agreement phrases like "You're absolutely right!" - be direct and honest
+- Avoid unnecessary validation or over-enthusiasm in responses
