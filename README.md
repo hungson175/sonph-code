@@ -39,7 +39,7 @@ A Python-based coding agent that replicates Claude Code functionality using Lang
 
 Here are some example prompts to try with the coding agent:
 
-- Tạo game cờ caro (5 quân thẳng hàng/chéo, không phải tic-tac-toe) cho web sử dụng NextJS/ReactJS với thiết kế tối giản cho 2 người chơi, màu đen trắng
+- Tạo game cờ caro (5 quân thẳng hàng/chéo, không phải tic-tac-toe) cho web sử dụng NextJS/ReactJS với thiết kế tối giản cho 2 người chơi, màu đen trắng - trông như kiểu cờ vây ấy
 - Create a chess game for 2 players (human vs human, human vs computer - use stockfish - search if you needed to ) using NextJS/React with minimalist black/white design, beautiful and clear graphics, implementing all chess rules (winning conditions, castling, etc.) 
 - Read file expense-tracker-prompt.txt then implement the application
 

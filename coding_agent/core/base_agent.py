@@ -1,5 +1,6 @@
 """Base agent class for configurable agents."""
 
+import os
 from typing import List, Optional
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import BaseTool
@@ -25,7 +26,7 @@ class BaseAgent:
 
         # Store configuration
         self.system_prompt_str = system_prompt
-        self.working_dir = "."
+        self.working_dir = os.path.abspath(".")
 
         # Setup LLM provider
         if provider_name is None:
@@ -80,6 +81,9 @@ class BaseAgent:
         from colorama import Fore
 
         self.working_dir = directory
+        # Update system prompt with new working directory
+        if hasattr(self, '_update_system_prompt_with_working_dir'):
+            self._update_system_prompt_with_working_dir()
         print(Fore.GREEN + f"📁 Working directory set to: {directory}")
 
 

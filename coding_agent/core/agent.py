@@ -1,5 +1,6 @@
 """Main CodingAgent class."""
 
+import os
 from typing import Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 
