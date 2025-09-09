@@ -1,0 +1,25 @@
+{
+  "name": "sonph-code",
+  "version": "1.0.0",
+  "description": "A Python-based coding agent that replicates Claude Code functionality using LangChain and Anthropic's API.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hungson175/sonph-code.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hungson175/sonph-code/issues"
+  },
+  "homepage": "https://github.com/hungson175/sonph-code#readme"
+}

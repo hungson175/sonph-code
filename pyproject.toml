@@ -17,6 +17,7 @@ dependencies = [
     "html2text>=2020.1.16",
     "langchain-anthropic>=0.3.19",
     "fredapi>=0.5.2",
+    "langchain-xai>=0.2.5",
 ]
 
 [build-system]

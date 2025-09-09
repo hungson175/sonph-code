@@ -22,12 +22,10 @@ def bash(
     command: Annotated[str, "The command to execute"],
     description: Annotated[Optional[str], "Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'"] = None,
     timeout: Annotated[Optional[int], "Optional timeout in milliseconds (max 600000)"] = None,
-    run_in_background: Annotated[bool, "Set to true to run this command in the background. Use BashOutput to read the output later."] = False,
+    run_in_background: Annotated[bool, "REQUIRED=True for 'npx create-*', 'npm install', 'pip install' commands! Set to true to run command in background. Use BashOutput to monitor."] = False,
 ) -> str:
-    """Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
-
-    IMPORTANT: For time-consuming installation commands (npx create-*, npm install, pip install, etc.), 
-    ALWAYS use run_in_background=true and monitor with BashOutput tool. Add -y flags for auto-confirmation.
+    """
+    Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
     
     Before executing the command, please follow these steps:
 
@@ -51,7 +49,7 @@ def bash(
       - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
       - If the output exceeds 30000 characters, output will be truncated before being returned to you.
       - You can use the `run_in_background` parameter to run the command in the background, which allows you to continue working while the command runs. You can monitor the output using the Bash tool as it becomes available. Never use `run_in_background` to run 'sleep' as it will return immediately. You do not need to use '&' at the end of the command when using this parameter.
-      - For time-consuming installation tools (npx create-*, npm install, etc.), use `run_in_background=true` and monitor with BashOutput. Add `-y` flags or pipe `yes |` for auto-confirmation when needed.
+      - **VERY IMPORTANT**: For time-consuming installation tools (npx create-*, npm install, etc.), use `run_in_background=true` and monitor with BashOutput. Add `-y` flags or pipe `yes |` for auto-confirmation when needed.
         Example: bash(command="npx create-next-app@latest my-app --typescript --yes", run_in_background=True)
       - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep`. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use Read and LS to read files.
       - If you _still_ need to run `grep`, STOP. ALWAYS USE ripgrep at `rg` first, which all Claude Code users have pre-installed.
