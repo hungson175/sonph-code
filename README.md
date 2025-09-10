@@ -14,26 +14,26 @@ A Python-based coding agent that replicates Claude Code functionality using Lang
    uv sync
    ```
 
-2. **Set up API key:**
+2. **Set up API keys:**
    ```bash
    cp .env.example .env
-   # Add your DEEPSEEK_API_KEY from https://platform.deepseek.com/
+   # Edit .env with your API keys:
+   # - ANTHROPIC_API_KEY (required for Claude - default provider)
+   # - DEEPSEEK_API_KEY (optional for DeepSeek provider)  
+   # - XAI_API_KEY (optional for Grok provider)
    ```
 
 3. **Run the agent:**
    ```bash
-   # Method 1: Using uv (recommended)
+   # Using global launcher (easiest)
+   sonph-code                  # Run in current directory
+   sonph-code /path/to/project # Run in specific directory
+   sonph-code --llm deepseek   # Use DeepSeek provider
+   sonph-code --llm grok       # Use Grok provider
+   
+   # Alternative: Direct Python execution (harder to use)
    uv run python main.py
-   
-   # Method 2: Using the run script
-   ./run.sh
-   
-   # Method 3: Activate venv first
-   source .venv/bin/activate
-   python main.py
    ```
-   
-   **Important:** Do NOT run `python main.py` directly without uv or activating the virtual environment, as dependencies won't be available.
 
 ## Example Prompts
 
