@@ -25,12 +25,13 @@ cp .env.example .env
 
 #### Using the Global Launcher (Recommended)
 ```bash
-# Run in current directory with default provider (DeepSeek)
+# Run in current directory with default provider (Claude Sonnet)
 sonph-code
 
 # Specify LLM provider
-sonph-code --llm claude     # Use Claude/Anthropic
-sonph-code --llm deepseek   # Use DeepSeek (default)
+sonph-code --llm claude     # Use Claude/Anthropic (default)
+sonph-code --llm deepseek   # Use DeepSeek
+sonph-code --llm grok       # Use Grok/xAI
 
 # Run in specific directory with provider
 sonph-code /path/to/project --llm claude
@@ -104,9 +105,12 @@ The project now uses a modular architecture:
 
 ## Environment Variables
 
-Required (choose based on LLM provider):
-- `ANTHROPIC_API_KEY`: Get from https://console.anthropic.com/ (for Claude provider)
+Required:
+- `ANTHROPIC_API_KEY`: Get from https://console.anthropic.com/ (for Claude provider - default)
+
+Optional (for other providers):
 - `DEEPSEEK_API_KEY`: Get from https://platform.deepseek.com/ (for DeepSeek provider)
+- `XAI_API_KEY`: Get from https://console.x.ai/ (for Grok provider)
 
 Optional (for tracing):
 - `LANGSMITH_TRACING=true`
@@ -131,7 +135,7 @@ Within the agent CLI:
 The agent supports multiple LLM providers that can be switched dynamically:
 
 #### Available Providers
-- **Claude/Anthropic** (aliases: `claude`, `sonnet`)
+- **Claude/Anthropic** (aliases: `claude`, `sonnet`) **[DEFAULT]**
   - Requires `ANTHROPIC_API_KEY`
   - Default model: `claude-sonnet-4-20250514`
   - Features: Manual cache control, optimized token usage reporting
@@ -139,6 +143,10 @@ The agent supports multiple LLM providers that can be switched dynamically:
   - Requires `DEEPSEEK_API_KEY`
   - Default model: `deepseek-chat`
   - Features: Auto-cache management, cost-effective inference
+- **Grok/xAI** (aliases: `grok`, `xai`)
+  - Requires `XAI_API_KEY`
+  - Default model: `grok-code-fast-1`
+  - Features: Auto-cache management, fast coding-focused inference
 
 #### Using the `/model` Command
 ```bash
@@ -151,6 +159,9 @@ The agent supports multiple LLM providers that can be switched dynamically:
 # Switch to DeepSeek
 /model deepseek
 
+# Switch to Grok
+/model grok
+
 # Switch with specific model name
 /model sonnet claude-sonnet-4-20250514
 ```
@@ -160,6 +171,7 @@ The agent supports multiple LLM providers that can be switched dynamically:
 # Start with specific provider
 sonph-code --llm claude
 sonph-code --llm deepseek
+sonph-code --llm grok
 ```
 
 ## Reverse Engineering Documentation

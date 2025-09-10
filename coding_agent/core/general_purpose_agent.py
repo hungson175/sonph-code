@@ -17,8 +17,8 @@ class GeneralPurposeAgent(BaseAgent):
 
     def __init__(self, model_name: str = Config.MODEL_NAME):
         """Initialize general purpose agent."""
-        # Load memory context (same as CodingAgent needs)
-        self.memory_context = load_memory_context()
+        # Initialize empty memory context - will be loaded with correct working directory
+        self.memory_context = ""
 
         super().__init__(
             system_prompt=self._get_general_purpose_prompt(),
@@ -26,11 +26,38 @@ class GeneralPurposeAgent(BaseAgent):
             model_name=model_name,
         )
 
-        # Add memory context if exists (same pattern as CodingAgent)
+        # Load memory context with correct working directory and add if significant
+        self._load_memory_context()
+
+    def _load_memory_context(self):
+        """Load memory context with correct working directory."""
+        self.memory_context = load_memory_context(working_dir=self.working_dir)
+        
+        # Find existing memory context message
+        memory_message_idx = None
+        for i, message in enumerate(self.messages):
+            if isinstance(message, HumanMessage) and "<system-reminder>" in str(message.content):
+                memory_message_idx = i
+                break
+        
+        # Update or add memory context if significant
         if self.memory_context and len(self.memory_context.strip()) > 100:
-            self.messages.append(
-                HumanMessage(content=self._create_cached_message(self.memory_context))
-            )
+            memory_message = HumanMessage(content=self._create_cached_message(self.memory_context))
+            if memory_message_idx is not None:
+                # Update existing memory context
+                self.messages[memory_message_idx] = memory_message
+            else:
+                # Add new memory context
+                self.messages.append(memory_message)
+        elif memory_message_idx is not None:
+            # Remove memory context if no longer significant
+            self.messages.pop(memory_message_idx)
+
+    def set_working_dir(self, directory: str):
+        """Override to reload memory context when working directory changes."""
+        super().set_working_dir(directory)
+        # Reload memory context for new directory
+        self._load_memory_context()
 
     def _get_general_purpose_prompt(self) -> str:
         """Get the general purpose agent system prompt."""

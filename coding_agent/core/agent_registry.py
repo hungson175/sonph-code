@@ -30,7 +30,7 @@ class AgentRegistry:
             self._agents_cache["general-purpose"] = {
                 "agentType": "general-purpose",
                 "whenToUse": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you.",
-                "tools": ["*"],
+                "tools": ["Read", "Write", "Edit", "Bash", "LS", "Glob", "Grep", "BashOutput", "TodoWrite"],
                 "model": Config.MODEL_NAME,
                 "source": "built-in",
             }

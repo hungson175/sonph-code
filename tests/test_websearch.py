@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test for Claude's native web search functionality."""
 
-import pytest
 from coding_agent.tools.web_search_tool import web_search
 
 
@@ -16,16 +15,22 @@ def test_web_search_tool():
     except Exception as e:
         # Web search may not be available, but tool should still be callable
         print(f"Web search unavailable: {e}")
-        assert "Web search error" in str(e) or "Connection error" in str(e) or "Overloaded" in str(e)
+        assert (
+            "Web search error" in str(e)
+            or "Connection error" in str(e)
+            or "Overloaded" in str(e)
+        )
 
 
 def test_web_search_with_domains():
     """Test web search with domain filtering."""
     try:
-        result = web_search.invoke({
-            "query": "machine learning",
-            "allowed_domains": ["arxiv.org"],
-        })
+        result = web_search.invoke(
+            {
+                "query": "machine learning",
+                "allowed_domains": ["arxiv.org"],
+            }
+        )
         assert isinstance(result, str)
     except Exception:
         # Expected if web search is not available

@@ -20,13 +20,21 @@ shell_manager = BackgroundShellManager()
 @tool("Bash")
 def bash(
     command: Annotated[str, "The command to execute"],
-    description: Annotated[Optional[str], "Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'"] = None,
-    timeout: Annotated[Optional[int], "Optional timeout in milliseconds (max 600000)"] = None,
-    run_in_background: Annotated[bool, "REQUIRED=True for 'npx create-*', 'npm install', 'pip install' commands! Set to true to run command in background. Use BashOutput to monitor."] = False,
+    description: Annotated[
+        Optional[str],
+        "Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'",
+    ] = None,
+    timeout: Annotated[
+        Optional[int], "Optional timeout in milliseconds (max 600000)"
+    ] = None,
+    run_in_background: Annotated[
+        bool,
+        "REQUIRED=True for 'npx create-*', 'npm install', 'pip install' commands! Set to true to run command in background. Use BashOutput to monitor.",
+    ] = False,
 ) -> str:
     """
     Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
-    
+
     Before executing the command, please follow these steps:
 
     1. Directory Verification:
@@ -160,7 +168,9 @@ def bash(
 
 
 @tool("KillBash")
-def kill_bash(shell_id: Annotated[str, "The ID of the background shell to kill"]) -> str:
+def kill_bash(
+    shell_id: Annotated[str, "The ID of the background shell to kill"],
+) -> str:
     """- Kills a running background bash shell by its ID
     - Takes a shell_id parameter identifying the shell to kill
     - Returns a success or failure status
@@ -207,8 +217,11 @@ def kill_bash(shell_id: Annotated[str, "The ID of the background shell to kill"]
 
 @tool("BashOutput")
 def get_bash_output(
-    bash_id: Annotated[str, "The ID of the background shell to retrieve output from"], 
-    filter: Annotated[Optional[str], "Optional regular expression to filter the output lines. Only lines matching this regex will be included in the result. Any lines that do not match will no longer be available to read."] = None
+    bash_id: Annotated[str, "The ID of the background shell to retrieve output from"],
+    filter: Annotated[
+        Optional[str],
+        "Optional regular expression to filter the output lines. Only lines matching this regex will be included in the result. Any lines that do not match will no longer be available to read.",
+    ] = None,
 ) -> str:
     """- Retrieves output from a running or completed background bash shell
     - Takes a shell_id parameter identifying the shell

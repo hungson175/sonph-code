@@ -88,9 +88,10 @@ class DynamicAgent(BaseAgent):
             "Task": task,
         }
 
-        # If '*' is specified, return all available tools
+        # If '*' is specified, return all available tools EXCEPT Task tool to prevent infinite recursion
         if tool_names == ["*"]:
-            return list(available_tool_objects.values())
+            tools_without_task = {k: v for k, v in available_tool_objects.items() if k != "Task"}
+            return list(tools_without_task.values())
 
         # Get available tool names by scanning the tools directory
         available_tool_names = DynamicAgent._get_available_tools()

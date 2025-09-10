@@ -8,8 +8,8 @@ class Config:
     """Centralized configuration management."""
 
     # Model and API settings
-    MODEL_NAME = "deepseek-chat"  # Default DeepSeek model
-    DEFAULT_PROVIDER = "deepseek"  # Default provider
+    MODEL_NAME = "claude-sonnet-4-20250514"  # Default Claude Sonnet model
+    DEFAULT_PROVIDER = "sonnet"  # Default provider
 
     # Timing settings
     CACHE_DURATION_SECONDS = 60
@@ -23,9 +23,9 @@ class Config:
 
     def __init__(self):
         load_dotenv()
-        self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
-        if not self.deepseek_api_key:
-            raise ValueError("DEEPSEEK_API_KEY environment variable is required")
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not self.anthropic_api_key:
+            raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
         self.langsmith_tracing = (
             os.getenv("LANGSMITH_TRACING", "false").lower() == "true"

@@ -6,7 +6,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import BaseTool
 
 from .config import Config
-from .llm_providers import LLMProviderFactory, LLMProvider
+from .llm_providers import LLMProviderFactory
 from ..utils.keyboard import setup_keyboard_interrupt
 
 
@@ -31,15 +31,19 @@ class BaseAgent:
         # Setup LLM provider
         if provider_name is None:
             provider_name = Config.DEFAULT_PROVIDER
-        
-        self.provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name)
-        
+
+        self.provider = LLMProviderFactory.create_provider(
+            provider_name, model_name=model_name
+        )
+
         # Setup tools AFTER provider is set
         self.tools = tools or self._get_default_tools()
         self.tools_map, self.llm_with_tools = self._setup_tools()
 
         # Initialize with correct prompt from the start
-        self.messages = [SystemMessage(content=self.provider.create_cached_message(system_prompt))]
+        self.messages = [
+            SystemMessage(content=self.provider.create_cached_message(system_prompt))
+        ]
 
     def _get_default_tools(self) -> List[BaseTool]:
         """Get default tool set - override in subclasses."""
@@ -82,10 +86,9 @@ class BaseAgent:
 
         self.working_dir = directory
         # Update system prompt with new working directory
-        if hasattr(self, '_update_system_prompt_with_working_dir'):
+        if hasattr(self, "_update_system_prompt_with_working_dir"):
             self._update_system_prompt_with_working_dir()
         print(Fore.GREEN + f"📁 Working directory set to: {directory}")
-
 
     def get_current_provider_info(self) -> str:
         """Get current provider information."""
@@ -161,16 +164,18 @@ class BaseAgent:
                     # Add tool result
                     self.messages.append(
                         ToolMessage(
-                            content=str(tool_result)[:Config.MAX_OUTPUT_LENGTH],  # Limit size
+                            content=str(tool_result)[
+                                : Config.MAX_OUTPUT_LENGTH
+                            ],  # Limit size
                             tool_call_id=tool_call["id"],
                         )
                     )
 
                 # Get next response from LLM
                 response = self.llm_with_tools.invoke(self.messages)
-                
+
             except KeyboardInterrupt:
-                print(Fore.YELLOW + f"\n⚠️  Tool execution interrupted by user (Ctrl+C)")
+                print(Fore.YELLOW + "\n⚠️  Tool execution interrupted by user (Ctrl+C)")
                 print(Fore.GREEN + "🔄 Returning to main prompt...")
                 return "Tool execution was cancelled by user."
 

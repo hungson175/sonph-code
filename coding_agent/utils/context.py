@@ -3,13 +3,23 @@
 from pathlib import Path
 
 
-def load_memory_context() -> str:
-    """Load memory context from global and project CLAUDE.md files."""
+def load_memory_context(working_dir: str = None) -> str:
+    """Load memory context from global and project CLAUDE.md files.
+    
+    Args:
+        working_dir: The working directory to load project CLAUDE.md from.
+                    If None, uses current directory.
+    """
     context_parts = []
 
     # Try to load global CLAUDE.md from ~/.claude/CLAUDE.md
     global_claude_path = Path.home() / ".claude" / "CLAUDE.md"
-    project_claude_path = Path(".") / "CLAUDE.md"
+    
+    # Use working directory if provided, otherwise current directory
+    if working_dir:
+        project_claude_path = Path(working_dir) / "CLAUDE.md"
+    else:
+        project_claude_path = Path(".") / "CLAUDE.md"
 
     context_parts.append("<system-reminder>")
     context_parts.append(
