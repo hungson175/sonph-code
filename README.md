@@ -1,169 +1,90 @@
 # sonph-code
 
-> An AI-powered coding assistant that helps you write, edit, and manage code through natural language conversations.
+> AI coding assistant - write, edit, and manage code through natural language
 
 ## 🚀 Quick Start
 
-### Prerequisites
+**Prerequisites:**
+- Python 3.11+
+- [Grok API key](https://console.x.ai/) (**required**)
 
-You'll need:
-- Python 3.11 or higher
-- [uv](https://github.com/astral-sh/uv) (Python package manager)
-- [ripgrep](https://github.com/BurntSushi/ripgrep) (for code search)
-- **Grok API key** from [console.x.ai](https://console.x.ai/)
-
-### Installation
-
-1. **Install system dependencies:**
-
-   ```bash
-   # macOS
-   brew install ripgrep
-
-   # Ubuntu/Debian
-   sudo apt install ripgrep
-
-   # Install uv (if not already installed)
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   # Note: You may need to restart your shell or run: source ~/.local/bin/env
-   ```
-
-2. **Clone and setup:**
-
-   ```bash
-   git clone <your-repo-url>
-   cd sonph-code
-
-   # Install Python dependencies
-   uv sync
-   ```
-
-3. **Configure your API key:**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your Grok API key:
-   # XAI_API_KEY=xai-your-key-here
-   ```
-
-4. **Install globally (optional but recommended):**
-
-   ```bash
-   ./install.sh
-   # If permission denied, run: sudo ./install.sh
-   ```
-
-### First Run
+**Install:**
 
 ```bash
-# If installed globally:
-sonph-code
+# 1. Install dependencies
+brew install ripgrep  # macOS
+# sudo apt install ripgrep  # Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Or run directly:
+# 2. Clone and setup
+git clone https://github.com/hungson175/sonph-code.git
+cd sonph-code
+uv sync
+
+# 3. Configure API key
+cp .env.example .env
+# Edit .env: XAI_API_KEY=xai-your-key-here
+
+# 4. Install globally (optional)
+./install.sh
+```
+
+**Run:**
+```bash
+sonph-code  # if installed globally
+# OR
 uv run python main.py
 ```
 
-That's it! The assistant will start and you can begin chatting.
+## 💡 Usage
 
-## 💡 How to Use
-
-### Basic Usage
-
-Simply type what you want to do in natural language:
+Just type what you want in natural language:
 
 ```
-> Create a Python function to calculate fibonacci numbers
-
-> Add error handling to the login function in auth.py
-
-> Refactor this code to use async/await
-
-> Write tests for the User model
+> Create a REST API for user authentication with JWT tokens
+> Add error handling to payment.py
+> Refactor this code to use dependency injection
 ```
-
-### Switching Models
-
-By default, sonph-code uses **Grok** (fast and cost-effective). You can switch to other providers:
-
-1. Add the API key to `.env`:
-   - `ANTHROPIC_API_KEY` for Claude
-   - `DEEPSEEK_API_KEY` for DeepSeek
-
-2. Use the `/model` command:
-   ```
-   > /model claude
-   > /model deepseek
-   > /model grok
-   ```
-
-### Useful Commands
-
-- `/model` - Switch between AI providers
-- `/init` - Analyze your codebase and create CLAUDE.md
-- `/commands` - Show all available commands
-- `reset` - Clear conversation history
-- `quit` or `exit` - Exit the assistant
-- `Ctrl+C` or `Esc` - Cancel running operations
 
 ### Example Prompts
 
-**Creating new features:**
+**Vietnamese (Cờ Caro game):**
 ```
-> Create a REST API endpoint for user registration with email validation
-```
-
-**Code analysis:**
-```
-> Analyze this codebase and suggest performance improvements
+Tạo game cờ caro (5 quân thẳng hàng/chéo, không phải tic-tac-toe) cho web sử dụng NextJS/ReactJS với thiết kế tối giản cho 2 người chơi, màu đen trắng - trông như kiểu cờ vây ấy. 2D với shadow đẹp đẹp tí, nhưng vẫn phải simple và elegant nhá ! Tạo thư mục để làm version mới hoàn toàn nhá !
 ```
 
-**Refactoring:**
+**English (Chess game):**
 ```
-> Refactor the authentication module to follow SOLID principles
-```
-
-**Bug fixing:**
-```
-> Fix the memory leak in the WebSocket connection handler
+Create a chess game for 2 players (human vs human) using NextJS/React with minimalist black/white design, beautiful and clear graphics, implementing all chess rules (winning conditions, castling, etc.) - use image or something nice for chess figure, not just font
 ```
 
-## 🤖 Supported AI Providers
-
-| Provider | Speed | Cost | API Key Required |
-|----------|-------|------|------------------|
-| **Grok/xAI** (Default) ⭐ | Fast | Low | `XAI_API_KEY` - **REQUIRED** |
-| Claude/Anthropic | Medium | Medium | `ANTHROPIC_API_KEY` - Optional |
-| DeepSeek | Fast | Very Low | `DEEPSEEK_API_KEY` - Optional |
-
-**Note:** You must have at least the Grok API key configured. Other providers are optional.
-
-## 🛠️ Advanced Usage
-
-### Run in a Specific Directory
-
-```bash
-sonph-code /path/to/your/project
+**Implementation from spec:**
+```
+Read file expense-tracker-prompt.txt then implement the application
 ```
 
-### Run Without Global Installation
+### Commands
 
-```bash
-cd /path/to/sonph-code
-uv run python main.py
-```
+- `/model` - Switch AI provider (claude/deepseek/grok)
+- `/init` - Analyze codebase
+- `reset` - Clear history
+- `quit` - Exit
 
-### Development Mode
+## 🤖 AI Providers
 
-For development and contributing, see [CLAUDE.md](CLAUDE.md) for:
-- Architecture details
-- Tool implementations
-- Development commands
-- Code quality guidelines
+| Provider | API Key | Required? |
+|----------|---------|-----------|
+| **Grok** ⭐ | `XAI_API_KEY` | **Yes** |
+| Claude | `ANTHROPIC_API_KEY` | Optional |
+| DeepSeek | `DEEPSEEK_API_KEY` | Optional |
 
-## 📝 License
+Switch providers: `/model claude` or `/model deepseek`
 
-This project is for educational and demonstration purposes.
+## 📚 More Info
 
-## 🙏 Credits
+- Development: See [CLAUDE.md](CLAUDE.md)
+- Run in directory: `sonph-code /path/to/project`
 
-Inspired by Claude Code from Anthropic.
+---
+
+Inspired by [Claude Code](https://claude.com/claude-code)
