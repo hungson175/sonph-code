@@ -57,7 +57,9 @@ def bash(
       - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
       - If the output exceeds 30000 characters, output will be truncated before being returned to you.
       - You can use the `run_in_background` parameter to run the command in the background, which allows you to continue working while the command runs. You can monitor the output using the Bash tool as it becomes available. Never use `run_in_background` to run 'sleep' as it will return immediately. You do not need to use '&' at the end of the command when using this parameter.
-      - **Package Management**: Prefer `yarn` over `npm` for Node.js packages. Use yarn's global cache for faster reinstalls.
+      - **CRITICAL - Package Management**: **ALWAYS** use `yarn` instead of `npm` for JavaScript/Node.js packages. This is a strict requirement.
+        **CRITICAL**: Use `yarn install` NOT `npm install`, `yarn add <package>` NOT `npm install <package>`.
+        **CRITICAL**: For project creation use `yarn create next-app` NOT `npx create-next-app`.
         Examples: `yarn install` instead of `npm install`, `yarn add <package>` instead of `npm install <package>`.
         For project creation: `yarn create next-app` instead of `npx create-next-app`.
       - **VERY IMPORTANT**: For time-consuming installation tools (yarn create-*, yarn install, etc.), use `run_in_background=true` and monitor with BashOutput. Add `-y` flags or pipe `yes |` for auto-confirmation when needed.

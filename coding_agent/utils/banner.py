@@ -1,4 +1,4 @@
-"""ASCII art banner and startup screen for mode."""
+"""ASCII art banner and startup screen for sonph-code."""
 
 from colorama import Fore, Style, init
 
@@ -7,7 +7,7 @@ init(autoreset=True)
 
 
 def get_ascii_banner():
-    """Get the ASCII art banner for mode."""
+    """Get the ASCII art banner for sonph-code."""
     return """
 ███    ███  ██████  ██████  ███████
 ████  ████ ██    ██ ██   ██ ██
@@ -47,13 +47,13 @@ def show_startup_screen(agent_count=None, working_dir=None):
     # Create a gradient background effect
     print()
 
-    # Show the main banner with gradient colors - MODE
+    # Show the main banner with gradient colors - sonph-code
     banner_lines = [
-        "███    ███  ██████  ██████  ███████",
-        "████  ████ ██    ██ ██   ██ ██     ",
-        "██ ████ ██ ██    ██ ██   ██ █████  ",
-        "██  ██  ██ ██    ██ ██   ██ ██     ",
-        "██      ██  ██████  ██████  ███████",
+        "███████  ██████  ███    ██ ██████  ██   ██       ██████  ██████  ██████  ███████",
+        "██      ██    ██ ████   ██ ██   ██ ██   ██      ██      ██    ██ ██   ██ ██     ",
+        "███████ ██    ██ ██ ██  ██ ██████  ███████      ██      ██    ██ ██   ██ █████  ",
+        "     ██ ██    ██ ██  ██ ██ ██      ██   ██      ██      ██    ██ ██   ██ ██     ",
+        "███████  ██████  ██   ████ ██      ██   ██       ██████  ██████  ██████  ███████",
     ]
 
     colors = [Fore.CYAN, Fore.BLUE, Fore.MAGENTA, Fore.RED, Fore.YELLOW]
@@ -141,7 +141,7 @@ def show_compact_banner():
         + Style.BRIGHT
         + "🚀 "
         + Fore.WHITE
-        + "MODE"
+        + "sonph-code"
         + Fore.CYAN
         + " - AI Coding Assistant"
     )

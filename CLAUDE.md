@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python-based coding agent that replicates Claude Code functionality using LangChain and Anthropic's API. The project demonstrates reverse engineering of Claude Code through API interception and reimplementation of essential coding tools.
+This is a Python-based coding agent that replicates Claude Code functionality using LangChain with support for multiple LLM providers (Grok, Claude/Anthropic, DeepSeek). The project demonstrates reverse engineering of Claude Code through API interception and reimplementation of essential coding tools.
 
 ## Development Commands
 
@@ -16,29 +16,26 @@ uv sync
 # Set up environment variables
 cp .env.example .env
 # Edit .env with your API keys:
-# - ANTHROPIC_API_KEY for Claude/Anthropic (required for Claude provider)
-# - DEEPSEEK_API_KEY for DeepSeek (required for DeepSeek provider)
-# - XAI_API_KEY for Grok/xAI (required for Grok provider)
-# - Optional LANGSMITH_* keys for tracing
+# - XAI_API_KEY for Grok/xAI (REQUIRED - default provider)
+# - ANTHROPIC_API_KEY for Claude/Anthropic (optional)
+# - DEEPSEEK_API_KEY for DeepSeek (optional)
+# - LANGSMITH_* keys for tracing (optional)
 ```
 
 ### Running the Agent
 
 #### Using the Global Launcher (Recommended)
 ```bash
-# Run in current directory with default provider (Grok)
+# Run in current directory (uses Grok by default)
 sonph-code
 
-# Specify LLM provider
-sonph-code --llm claude     # Use Claude/Anthropic
-sonph-code --llm deepseek   # Use DeepSeek
-sonph-code --llm grok       # Use Grok/xAI (default)
-
-# Run in specific directory with provider
-sonph-code /path/to/project --llm claude
+# Run in specific directory
+sonph-code /path/to/project
 
 # Show help
 sonph-code --help
+
+# To switch LLM providers, use the /model command inside the tool
 ```
 
 #### Direct Python Execution
@@ -113,10 +110,12 @@ The project uses a modular architecture:
 
 ## Environment Variables
 
-Required (at least one):
+Required:
+- `XAI_API_KEY`: Get from https://console.x.ai/ (for Grok provider - **REQUIRED**, default)
+
+Optional (for alternative providers):
 - `ANTHROPIC_API_KEY`: Get from https://console.anthropic.com/ (for Claude provider)
 - `DEEPSEEK_API_KEY`: Get from https://platform.deepseek.com/ (for DeepSeek provider)
-- `XAI_API_KEY`: Get from https://console.x.ai/ (for Grok provider - default)
 
 Optional:
 - `LANGSMITH_TRACING=true`

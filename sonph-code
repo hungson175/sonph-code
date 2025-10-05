@@ -1,46 +1,43 @@
 #!/bin/bash
-# Sonph-Code - Claude Code clone launcher script
+# sonph-code - Claude Code clone launcher script
 # Usage: sonph-code [directory]
 #
 # This script launches the coding agent from any directory.
 # The working directory will be set to the current directory or specified directory.
 
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Get the directory where this script is located (resolve symlinks)
+if [ -L "${BASH_SOURCE[0]}" ]; then
+    # Script is a symlink, resolve it
+    SCRIPT_PATH="$(readlink "${BASH_SOURCE[0]}")"
+    SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+else
+    # Script is not a symlink
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+fi
 
 # Initialize variables
 WORKING_DIR=""
-LLM_PROVIDER=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --help|-h)
-            echo "🤖 Sonph-Code - Claude Code Clone"
+            echo "🤖 sonph-code - Claude Code Clone"
             echo ""
             echo "Usage:"
-            echo "  sonph-code                    # Run in current directory (Claude Sonnet)"
-            echo "  sonph-code /path              # Run in specified directory"
-            echo "  sonph-code --llm <provider>   # Specify LLM provider"
-            echo "  sonph-code --help             # Show this help"
+            echo "  sonph-code          # Run in current directory"
+            echo "  sonph-code /path    # Run in specified directory"
+            echo "  sonph-code --help   # Show this help"
             echo ""
-            echo "LLM Providers:"
-            echo "  claude, sonnet    # Use Claude/Anthropic (default)"
-            echo "  deepseek, ds      # Use DeepSeek"
-            echo "  grok, xai         # Use Grok/xAI"
+            echo "Note: Use /model command inside the tool to switch LLM providers"
             echo ""
             echo "Examples:"
-            echo "  sonph-code --llm claude"
-            echo "  sonph-code /path/to/project --llm deepseek"
-            echo "  sonph-code --llm grok"
+            echo "  sonph-code"
+            echo "  sonph-code /path/to/project"
             echo ""
             echo "The tool will start with the working directory set to the specified"
             echo "directory (or current directory if none specified)."
             exit 0
-            ;;
-        --llm)
-            LLM_PROVIDER="$2"
-            shift 2
             ;;
         -*)
             echo "Error: Unknown option $1"
@@ -73,14 +70,10 @@ else
     WORKING_DIR="$(pwd)"
 fi
 
-echo "🚀 Starting Sonph-Code in: $WORKING_DIR"
+echo "🚀 Starting sonph-code in: $WORKING_DIR"
 
 # Set environment variables
 export INITIAL_DIR="$WORKING_DIR"
-if [ -n "$LLM_PROVIDER" ]; then
-    export SONPH_LLM_PROVIDER="$LLM_PROVIDER"
-    echo "🤖 Using LLM provider: $LLM_PROVIDER"
-fi
 
 # Run the main script with virtual environment activated
 # This preserves TTY better than 'uv run' for autocomplete support
