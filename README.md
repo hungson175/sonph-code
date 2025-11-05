@@ -17,7 +17,9 @@ brew install ripgrep  # macOS
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Clone and setup
+
 git clone https://github.com/hungson175/sonph-code.git
+
 cd sonph-code
 uv sync
 
