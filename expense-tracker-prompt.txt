@@ -12,8 +12,8 @@ CORE FEATURES:
 - Data persistence using localStorage for this demo
 
 TECHNICAL REQUIREMENTS:
-- Use yarn, NOT npm, e.g: yarn install, yarn add, yarn create next-app , NOT: npm install, npm add or npx create-next-app
-- NextJS 14 with App Router
+- Use yarn with caching, NOT npm, e.g: yarn install, yarn add, yarn create next-app , **NOT**: npm install, npm add or npx create-next-app
+- NextJS with App Router
 - TypeScript for type safety
 - Tailwind CSS for styling with a modern, clean design
 - Responsive design that works on desktop and mobile
@@ -38,7 +38,9 @@ SPECIFIC FUNCTIONALITY:
 - Delete and edit existing expenses
 
 Please create this as a complete, production-ready application. Set up the project structure, implement all features, and make sure everything works together seamlessly. Focus on creating something that looks professional and that I could actually use to track my expenses.
+Use ui/ux expert to give the quick design guideline for the app first (not code, design guideline)
 
-Create NEW project inside ./experiments_codes/ 
+Create NEW project inside {current_working_dir}/samples/expense_tracker_{datetime - to second precision} (there may be SEVERAL version of this same app).
+And please **measure total time** to finish this app (get date time to seconds when you DONE - END_TIME-STAR_TIME )
 
-When you're done, provide instructions on how to run the application and test all features.
+When you're done, provide instructions on how to run the application and test all features, yarn dev should automatically find available port (not running yourself, but give me the command to run- I will run it manually)
